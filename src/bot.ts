@@ -120,6 +120,7 @@ class SelfCareBot {
 
     // Обработка кнопок меню
     this.bot.onText(/^🌱 Старт$/, this.handleStart.bind(this));
+    this.bot.onText(/^🌱 Начать заново$/, this.handleRestart.bind(this));
     this.bot.onText(/^📋 Помощь$/, this.handleHelp.bind(this));
     this.bot.onText(/^⏸️ Пауза$/, this.handlePause.bind(this));
     this.bot.onText(/^▶️ Продолжить$/, this.handleResume.bind(this));
@@ -917,7 +918,38 @@ class SelfCareBot {
       console.error('❌ Ошибка в handleResume:', error);
     }
   }
+private async handleRestart(msg: TelegramBot.Message): Promise<void> {
+  const telegramId = msg.from?.id;
+  const chatId = msg.chat.id;
+  const name = msg.from?.first_name;
 
+  if (!telegramId) return;
+
+  try {
+    console.log(`👤 Пользователь ${telegramId} перезапускает курс`);
+    
+    // Сбрасываем прогресс и запускаем заново
+    await this.database.resetUserProgress(telegramId);
+    await this.database.updateUserDay(telegramId, 1);
+    const user = await this.database.getUser(telegramId);
+    
+    await this.bot.sendMessage(chatId, 
+      `🎉 Отлично${name ? `, ${name}` : ''}! Ты записана на курс заново!\n\n` +
+      `Завтра в 9:00 утра тебе придет первое сообщение.\n` +
+      `За день будет 4 сообщения:\n` +
+      `🌅 09:00 - Утреннее приветствие\n` +
+      `🌸 13:00 - Упражнение дня\n` +
+      `💝 16:00 - Фраза для размышления\n` +
+      `🌙 20:00 - Вечерняя рефлексия\n\n` +
+      `Готова начать завтра заново? 💙`, {
+      reply_markup: this.getMainKeyboard(user)
+    });
+    
+  } catch (error) {
+    console.error(`❌ Ошибка в handleRestart:`, error);
+    await this.bot.sendMessage(chatId, 'Произошла ошибка при перезапуске курса.');
+  }
+}
   private async handleStats(msg: TelegramBot.Message): Promise<void> {
     const telegramId = msg.from?.id;
     if (!telegramId || telegramId.toString() !== config.telegram.adminId) return;

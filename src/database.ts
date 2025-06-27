@@ -316,7 +316,17 @@ export class Database {
     const query = 'UPDATE users SET course_completed = true, updated_at = CURRENT_TIMESTAMP WHERE telegram_id = $1';
     await this.pool.query(query, [telegramId]);
   }
-
+async resetUserProgress(telegramId: number): Promise<void> {
+  const query = `
+    UPDATE users 
+    SET course_completed = false, 
+        current_day = 1, 
+        is_paused = false,
+        updated_at = CURRENT_TIMESTAMP 
+    WHERE telegram_id = $1
+  `;
+  await this.pool.query(query, [telegramId]);
+}
   async createAlert(userId: number, triggerWord: string, message: string): Promise<void> {
     const query = `
       INSERT INTO alerts (user_id, trigger_word, message) 
