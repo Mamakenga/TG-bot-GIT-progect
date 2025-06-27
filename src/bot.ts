@@ -118,6 +118,7 @@ class SelfCareBot {
     this.bot.onText(/\/test/, this.handleTest.bind(this));
     this.bot.onText(/\/pause/, this.handlePause.bind(this));
     this.bot.onText(/\/resume/, this.handleResume.bind(this));
+    this.bot.onText(/\/menu/, this.handleMenu.bind(this));
 
     // Обработка кнопок меню
     this.bot.onText(/^🌱 Старт$/, this.handleStart.bind(this));
@@ -612,11 +613,10 @@ class SelfCareBot {
           }
         });
         
-        setTimeout(async () => {
-          await this.bot.sendMessage(chatId, 'Для быстрого доступа используй кнопки ниже:', {
-            reply_markup: this.getMainKeyboard(user)
-          });
-        }, 1000);
+        // Убираем setTimeout и показываем клавиатуру сразу после inline кнопок
+await this.bot.sendMessage(chatId, 'Для быстрого доступа используй кнопки ниже:', {
+  reply_markup: this.getMainKeyboard(user)
+});
       }
       
     } catch (error) {
@@ -636,7 +636,8 @@ class SelfCareBot {
           ['🌱 Старт', '📋 Помощь']
         ],
         resize_keyboard: true,
-        persistent: true
+        persistent: true,
+        one_time_keyboard: false 
       };
     }
 
@@ -1033,6 +1034,21 @@ private async handleTest(msg: TelegramBot.Message): Promise<void> {
   } catch (error) {
     console.error('❌ Ошибка в handleTest:', error);
     await this.bot.sendMessage(chatId, 'Произошла ошибка при тестировании');
+  }
+}
+private async handleMenu(msg: TelegramBot.Message): Promise<void> {
+  const telegramId = msg.from?.id;
+  const chatId = msg.chat.id;
+
+  if (!telegramId) return;
+
+  try {
+    const user = await this.database.getUser(telegramId);
+    await this.bot.sendMessage(chatId, 'Вот твоё меню:', {
+      reply_markup: this.getMainKeyboard(user)
+    });
+  } catch (error) {
+    console.error('❌ Ошибка в handleMenu:', error);
   }
 }
   private async handleStats(msg: TelegramBot.Message): Promise<void> {
