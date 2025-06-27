@@ -489,7 +489,7 @@ class SelfCareBot {
     }
 
     // Проверяем is_paused с учетом того, что поле может отсутствовать
-    const isPaused = user.is_paused === true;
+    const isPaused = Boolean(user.is_paused);
     
     if (isPaused) {
       return {
@@ -693,13 +693,13 @@ class SelfCareBot {
         progressText += `🎉 Курс завершен!\nПоздравляю! Ты прошла все 7 дней заботы о себе.\n\n`;
         progressText += `💙 Используй полученные навыки каждый день:\n`;
         progressText += `• Замечай свои эмоции\n• Говори себе добрые слова\n• Заботься о своих потребностях\n• Принимай свою уязвимость`;
-      } else if (user.is_paused === true) {
+      } else if (Boolean(user.is_paused)) {
         progressText += `⏸️ Курс на паузе\n`;
         progressText += `📅 Текущий день: ${user.current_day || 1} из 7\n\n`;
         progressText += `Нажми "Продолжить" когда будешь готова! 💙`;
       } else {
         const currentDay = user.current_day || 1;
-        const isPaused = user.is_paused === true;
+        const isPaused = Boolean(user.is_paused)
         
         progressText += `📅 День: ${currentDay} из 7\n`;
         progressText += `🌱 Статус: ${isPaused ? 'На паузе' : 'Активен'}\n\n`;
