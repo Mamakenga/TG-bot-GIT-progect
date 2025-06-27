@@ -5,10 +5,11 @@ export interface DbUser {
   id: number;
   telegram_id: number;
   name: string | null;
-  currentDay: number;
+  current_day: number;  // Исправлено: используем current_day как в базе
   personalization_type: string | null;
   notifications_enabled: boolean;
   preferred_time: string;
+  course_completed: boolean;
   created_at: Date;
   updated_at: Date;
 }

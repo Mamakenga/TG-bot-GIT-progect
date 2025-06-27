@@ -1,21 +1,14 @@
-export interface JournalEntry {
-  date: string;
-  text: string;
-}
-
 export interface User {
-  id: string;
-  name: string;
-  avatar: string;
-  currentDay: number;
-  courseCompleted: boolean;
-  journals: JournalEntry[];
-  sentimentHistory: { day: number; score: number }[];
-}
-
-export interface CourseOption {
-  text: string;
-  response: string;
+  id: number;
+  telegram_id: number;
+  name?: string;
+  current_day: number;  // Исправлено: используем current_day как в базе
+  personalization_type?: string;
+  notifications_enabled: boolean;
+  preferred_time: string;
+  course_completed: boolean;
+  created_at: Date;
+  updated_at: Date;
 }
 
 export interface CourseDay {
@@ -23,4 +16,18 @@ export interface CourseDay {
   title: string;
   baseContent: string;
   options?: CourseOption[];
+  followUp?: string;
+}
+
+export interface CourseOption {
+  text: string;
+  response: string;
+  callback?: string;
+}
+
+export interface AlertResponse {
+  trigger_word: string;
+  message: string;
+  handled: boolean;
+  created_at: Date;
 }
