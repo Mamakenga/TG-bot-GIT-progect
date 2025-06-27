@@ -56,7 +56,7 @@ class SelfCareBot {
   }
 
   private setupWebhook(): void {
-    const url = 'https://tg-bot-git-progect.up.railway.app';
+    const url = 'https://tg-bot-git-progect-production.up.railway.app';
     const webhookUrl = `${url}/bot${config.telegram.token}`;
     
     this.bot.setWebHook(webhookUrl).then(() => {
