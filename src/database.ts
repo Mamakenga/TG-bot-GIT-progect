@@ -93,9 +93,10 @@ export class Database {
         id SERIAL PRIMARY KEY,
         user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
         day INTEGER NOT NULL,
-        reminder_type VARCHAR(50) NOT NULL, -- 'morning', 'exercise', 'phrase', 'evening'
+        reminder_type VARCHAR(50) NOT NULL,
+        sent_date DATE DEFAULT CURRENT_DATE,
         sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(user_id, day, reminder_type, sent_at::date)
+        UNIQUE(user_id, day, reminder_type, sent_date)
       )`,
 
       // Индексы для производительности
@@ -103,7 +104,7 @@ export class Database {
       `CREATE INDEX IF NOT EXISTS idx_users_active ON users(course_completed, is_paused, current_day)`,
       `CREATE INDEX IF NOT EXISTS idx_responses_user_day ON responses(user_id, day)`,
       `CREATE INDEX IF NOT EXISTS idx_alerts_handled ON alerts(handled, created_at)`,
-      `CREATE INDEX IF NOT EXISTS idx_reminder_log_user_day ON reminder_log(user_id, day, reminder_type)`
+      `CREATE INDEX IF NOT EXISTS idx_reminder_log_user_day ON reminder_log(user_id, day, reminder_type, sent_date)`
     ];
 
     for (const query of queries) {
@@ -170,7 +171,7 @@ export class Database {
     const query = `
       SELECT COUNT(*) as count FROM reminder_log 
       WHERE user_id = $1 AND day = $2 AND reminder_type = $3 
-        AND sent_at::date = CURRENT_DATE
+        AND sent_date = CURRENT_DATE
     `;
     const result = await this.pool.query(query, [userId, day, reminderType]);
     return parseInt(result.rows[0].count) > 0;
@@ -179,9 +180,9 @@ export class Database {
   // НОВЫЙ МЕТОД: Логирование отправленного напоминания
   async logReminderSent(userId: number, day: number, reminderType: string): Promise<void> {
     const query = `
-      INSERT INTO reminder_log (user_id, day, reminder_type) 
-      VALUES ($1, $2, $3)
-      ON CONFLICT (user_id, day, reminder_type, sent_at::date) DO NOTHING
+      INSERT INTO reminder_log (user_id, day, reminder_type, sent_date) 
+      VALUES ($1, $2, $3, CURRENT_DATE)
+      ON CONFLICT (user_id, day, reminder_type, sent_date) DO NOTHING
     `;
     await this.pool.query(query, [userId, day, reminderType]);
   }
@@ -220,7 +221,7 @@ export class Database {
   async getStats(): Promise<DbStats> {
     const queries = {
       totalUsers: 'SELECT COUNT(*) as count FROM users',
-      activeToday: `SELECT COUNT(*) as count FROM users WHERE updated_at::date = CURRENT_DATE`,
+      activeToday: `SELECT COUNT(*) as count FROM users WHERE DATE(updated_at) = CURRENT_DATE`,
       completedCourse: 'SELECT COUNT(*) as count FROM users WHERE course_completed = true'
     };
 
