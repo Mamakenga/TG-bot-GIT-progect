@@ -8,7 +8,6 @@
     "build": "tsc --build --verbose",
     "dev": "ts-node src/bot.ts",
     "postinstall": "npm run build",
-    "prebuild": "rm -rf dist",
     "check": "tsc --noEmit"
   },
   "dependencies": {
