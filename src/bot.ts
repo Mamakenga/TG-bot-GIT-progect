@@ -92,6 +92,13 @@ class SelfCareBot {
     this.bot.onText(/\/pause/, this.handlePause.bind(this));
     this.bot.onText(/\/resume/, this.handleResume.bind(this));
 
+    // Обработка кнопок меню
+    this.bot.onText(/^🌱 Старт$/, this.handleStart.bind(this));
+    this.bot.onText(/^📋 Помощь$/, this.handleHelp.bind(this));
+    this.bot.onText(/^⏸️ Пауза$/, this.handlePause.bind(this));
+    this.bot.onText(/^▶️ Продолжить$/, this.handleResume.bind(this));
+    this.bot.onText(/^📊 Мой прогресс$/, this.handleProgress.bind(this));
+
     // Callback кнопки
     this.bot.on('callback_query', this.handleCallback.bind(this));
 
@@ -340,7 +347,7 @@ class SelfCareBot {
     this.app.get('/', (req, res) => res.redirect('/dashboard'));
   }
 
-  // === ОБРАБОТЧИКИ КОМАНД === (упрощены)
+  // === ОБРАБОТЧИКИ КОМАНД ===
   private async handleStart(msg: TelegramBot.Message): Promise<void> {
     const chatId = msg.chat.id;
     const telegramId = msg.from?.id;
@@ -349,31 +356,110 @@ class SelfCareBot {
     if (!telegramId) return;
 
     try {
-      console.log(`👤 Пользователь ${telegramId} (${name}) запустил /start`);
+      console.log(`👤 Пользователь ${telegramId} (${name}) запустил старт`);
       
       await this.database.createUser(telegramId, name);
+      const user = await this.database.getUser(telegramId);
       
-      await this.bot.sendMessage(chatId, 
-        `🌸 Привет${name ? `, ${name}` : ''}! Я бот-помощник по заботе о себе.
+      // Определяем какую клавиатуру показать
+      const keyboard = this.getMainKeyboard(user);
+      
+      // Проверяем статус пользователя
+      if (user?.course_completed) {
+        await this.bot.sendMessage(chatId, 
+          `🎉 Привет${name ? `, ${name}` : ''}! 
+
+Ты уже завершила 7-дневный курс заботы о себе! 
+Поздравляю с этим достижением! 💙
+
+Можешь пройти курс заново или использовать полученные навыки в повседневной жизни.`, {
+          reply_markup: keyboard
+        });
+      } else if (user?.current_day > 1) {
+        await this.bot.sendMessage(chatId, 
+          `🌸 С возвращением${name ? `, ${name}` : ''}!
+
+Ты сейчас на ${user.current_day} дне курса заботы о себе.
+Продолжим наше путешествие? 💙`, {
+          reply_markup: keyboard
+        });
+      } else {
+        // Отправляем приветствие и потом клавиатуру
+        await this.bot.sendMessage(chatId, 
+          `🌸 Привет${name ? `, ${name}` : ''}! Я бот-помощник по заботе о себе.
 
 За 7 дней мы мягко исследуем, как быть добрее к себе.
 
 Готова начать это путешествие?`, {
-        reply_markup: {
-          inline_keyboard: [[
-            { text: '🌱 Да, готова', callback_data: 'start_yes' },
-            { text: '❓ Расскажи подробнее', callback_data: 'more_info' },
-            { text: '⏰ Позже', callback_data: 'later' }
-          ]]
-        }
-      });
+          reply_markup: {
+            inline_keyboard: [[
+              { text: '🌱 Да, готова', callback_data: 'start_yes' },
+              { text: '❓ Расскажи подробнее', callback_data: 'more_info' },
+              { text: '⏰ Позже', callback_data: 'later' }
+            ]]
+          }
+        });
+        
+        // Отправляем основную клавиатуру
+        setTimeout(async () => {
+          await this.bot.sendMessage(chatId, 'Для быстрого доступа используй кнопки ниже:', {
+            reply_markup: this.getMainKeyboard(user)
+          });
+        }, 1000);
+      }
       
     } catch (error) {
       console.error(`❌ Ошибка в handleStart:`, error);
       try {
-        await this.bot.sendMessage(chatId, 'Произошла ошибка. Попробуйте /start еще раз.');
+        await this.bot.sendMessage(chatId, 'Произошла ошибка. Попробуйте еще раз.', {
+          reply_markup: this.getMainKeyboard(null)
+        });
       } catch {}
     }
+  }
+
+  // Генерация основной клавиатуры в зависимости от статуса пользователя
+  private getMainKeyboard(user: DbUser | null): any {
+    if (!user) {
+      return {
+        keyboard: [
+          ['🌱 Старт', '📋 Помощь']
+        ],
+        resize_keyboard: true,
+        persistent: true
+      };
+    }
+
+    if (user.course_completed) {
+      return {
+        keyboard: [
+          ['🌱 Начать заново', '📊 Мой прогресс'],
+          ['📋 Помощь']
+        ],
+        resize_keyboard: true,
+        persistent: true
+      };
+    }
+
+    if (user.is_paused) {
+      return {
+        keyboard: [
+          ['▶️ Продолжить', '📊 Мой прогресс'],
+          ['📋 Помощь']
+        ],
+        resize_keyboard: true,
+        persistent: true
+      };
+    }
+
+    return {
+      keyboard: [
+        ['📊 Мой прогресс', '⏸️ Пауза'],
+        ['📋 Помощь']
+      ],
+      resize_keyboard: true,
+      persistent: true
+    };
   }
 
   private async handleCallback(callbackQuery: TelegramBot.CallbackQuery): Promise<void> {
@@ -388,20 +474,23 @@ class SelfCareBot {
 
       if (data === 'start_yes') {
         await this.database.updateUserDay(telegramId, 1);
+        const user = await this.database.getUser(telegramId);
+        
         await this.bot.sendMessage(chatId, 
           `🎉 Отлично! Ты записана на курс!\n\n` +
           `Завтра в 9:00 утра тебе придет первое сообщение.\n` +
-          `За день будет 3-4 сообщения:\n` +
+          `За день будет 4 сообщения:\n` +
           `🌅 09:00 - Утреннее приветствие\n` +
           `🌸 13:00 - Упражнение дня\n` +
           `💝 16:00 - Фраза для размышления\n` +
           `🌙 20:00 - Вечерняя рефлексия\n\n` +
-          `Готова начать завтра? 💙`
-        );
+          `Готова начать завтра? 💙`, {
+          reply_markup: this.getMainKeyboard(user)
+        });
       } else if (data === 'more_info') {
         const infoText = `📚 Курс состоит из 7 дней:\n\n` +
           courseContent.map((day, index) => `📅 День ${index + 1}: ${day.title}`).join('\n') +
-          `\n\nКаждый день - 3-4 коротких сообщения.\nГотова попробовать?`;
+          `\n\nКаждый день - 4 коротких сообщения.\nГотова попробовать?`;
 
         await this.bot.sendMessage(chatId, infoText, {
           reply_markup: {
@@ -412,7 +501,10 @@ class SelfCareBot {
           }
         });
       } else if (data === 'later') {
-        await this.bot.sendMessage(chatId, 'Понимаю 🤗 Напиши /start когда будешь готова.');
+        const user = await this.database.getUser(telegramId);
+        await this.bot.sendMessage(chatId, 'Понимаю 🤗 Напиши "Старт" когда будешь готова.', {
+          reply_markup: this.getMainKeyboard(user)
+        });
       }
 
       // Обработка ответов на дни курса
@@ -442,7 +534,9 @@ class SelfCareBot {
       ];
       const randomResponse = responses[Math.floor(Math.random() * responses.length)];
       
-      await this.bot.sendMessage(chatId, randomResponse);
+      await this.bot.sendMessage(chatId, randomResponse, {
+        reply_markup: this.getMainKeyboard(user)
+      });
 
       // Если это вечернее сообщение - переводим на следующий день
       if (data.includes('_evening_')) {
@@ -452,10 +546,13 @@ class SelfCareBot {
           await this.database.markDayCompleted(user.id, user.current_day);
         } else {
           await this.database.markCourseCompleted(telegramId);
+          const completedUser = await this.database.getUser(telegramId);
+          
           await this.bot.sendMessage(chatId, 
             `🎉 Поздравляю! Ты завершила 7-дневный курс заботы о себе!\n\n` +
-            `Это настоящее достижение. Используй полученные навыки каждый день! 💙`
-          );
+            `Это настоящее достижение. Используй полученные навыки каждый день! 💙`, {
+            reply_markup: this.getMainKeyboard(completedUser)
+          });
         }
       }
 
@@ -512,19 +609,101 @@ class SelfCareBot {
   }
 
   private async handleHelp(msg: TelegramBot.Message): Promise<void> {
+    const telegramId = msg.from?.id;
+    const user = telegramId ? await this.database.getUser(telegramId) : null;
+    
     const helpText = `📋 Помощь по боту:\n\n` +
-      `🌸 Команды:\n/start - Начать курс\n/help - Справка\n/pause - Пауза\n\n` +
-      `💙 О программе:\n7-дневный курс заботы о себе\n3-4 сообщения в день\n\n` +
+      `🌸 Основные кнопки:\n• Старт - Начать или перезапустить курс\n• Мой прогресс - Показать текущий статус\n• Пауза/Продолжить - Управление курсом\n\n` +
+      `💙 О программе:\n7-дневный курс заботы о себе\n4 сообщения в день (9:00, 13:00, 16:00, 20:00)\n\n` +
       `🆘 Поддержка: help@harmony4soul.com`;
-    await this.bot.sendMessage(msg.chat.id, helpText);
+    
+    await this.bot.sendMessage(msg.chat.id, helpText, {
+      reply_markup: this.getMainKeyboard(user)
+    });
+  }
+
+  private async handleProgress(msg: TelegramBot.Message): Promise<void> {
+    const telegramId = msg.from?.id;
+    if (!telegramId) return;
+
+    try {
+      const user = await this.database.getUser(telegramId);
+      if (!user) {
+        await this.bot.sendMessage(msg.chat.id, 'Сначала нужно запустить бота. Нажми "Старт" 🌱', {
+          reply_markup: this.getMainKeyboard(null)
+        });
+        return;
+      }
+
+      let progressText = `📊 Твой прогресс:\n\n`;
+      
+      if (user.course_completed) {
+        progressText += `🎉 Курс завершен!\nПоздравляю! Ты прошла все 7 дней заботы о себе.\n\n`;
+        progressText += `💙 Используй полученные навыки каждый день:\n`;
+        progressText += `• Замечай свои эмоции\n• Говори себе добрые слова\n• Заботься о своих потребностях\n• Принимай свою уязвимость`;
+      } else if (user.is_paused) {
+        progressText += `⏸️ Курс на паузе\n`;
+        progressText += `📅 Текущий день: ${user.current_day} из 7\n\n`;
+        progressText += `Нажми "Продолжить" когда будешь готова! 💙`;
+      } else {
+        progressText += `📅 День: ${user.current_day} из 7\n`;
+        progressText += `🌱 Статус: Активен\n\n`;
+        
+        if (user.current_day === 1) {
+          progressText += `Сегодня: Осознание боли\nЗавтра в 9:00 придет первое сообщение дня.`;
+        } else {
+          const dayContent = getDayContent(user.current_day);
+          if (dayContent) {
+            progressText += `Сегодня: ${dayContent.title}\n`;
+            progressText += `Следующее сообщение ждет тебя по расписанию! 🕐`;
+          }
+        }
+      }
+
+      const completionPercentage = user.course_completed ? 100 : Math.round(((user.current_day - 1) / 7) * 100);
+      progressText += `\n\n📈 Прогресс: ${completionPercentage}%`;
+      progressText += `\n${'▓'.repeat(Math.floor(completionPercentage / 10))}${'░'.repeat(10 - Math.floor(completionPercentage / 10))}`;
+
+      await this.bot.sendMessage(msg.chat.id, progressText, {
+        reply_markup: this.getMainKeyboard(user)
+      });
+
+    } catch (error) {
+      console.error('❌ Ошибка в handleProgress:', error);
+      await this.bot.sendMessage(msg.chat.id, 'Произошла ошибка при получении прогресса.');
+    }
   }
 
   private async handlePause(msg: TelegramBot.Message): Promise<void> {
-    await this.bot.sendMessage(msg.chat.id, 'Курс приостановлен. /start для возобновления 💙');
+    const telegramId = msg.from?.id;
+    if (!telegramId) return;
+
+    try {
+      await this.database.pauseUser(telegramId);
+      const user = await this.database.getUser(telegramId);
+      
+      await this.bot.sendMessage(msg.chat.id, 'Курс приостановлен. Нажми "Продолжить" когда будешь готова 💙', {
+        reply_markup: this.getMainKeyboard(user)
+      });
+    } catch (error) {
+      console.error('❌ Ошибка в handlePause:', error);
+    }
   }
 
   private async handleResume(msg: TelegramBot.Message): Promise<void> {
-    await this.bot.sendMessage(msg.chat.id, 'Продолжаем путь заботы о себе 🌱');
+    const telegramId = msg.from?.id;
+    if (!telegramId) return;
+
+    try {
+      await this.database.resumeUser(telegramId);
+      const user = await this.database.getUser(telegramId);
+      
+      await this.bot.sendMessage(msg.chat.id, 'Курс возобновлен! Продолжаем путь заботы о себе 🌱', {
+        reply_markup: this.getMainKeyboard(user)
+      });
+    } catch (error) {
+      console.error('❌ Ошибка в handleResume:', error);
+    }
   }
 
   private async handleStats(msg: TelegramBot.Message): Promise<void> {
