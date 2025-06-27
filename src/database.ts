@@ -10,7 +10,7 @@ export interface DbUser {
   notifications_enabled: boolean;
   preferred_time: string;
   course_completed: boolean;
-  is_paused: boolean;
+  is_paused?: boolean; // Опциональное поле для совместимости
   created_at: Date;
   updated_at: Date;
 }
@@ -44,81 +44,117 @@ export class Database {
   }
 
   private async createTables(): Promise<void> {
-    const queries = [
-      // Создание таблицы users (с обновленной структурой)
-      `CREATE TABLE IF NOT EXISTS users (
-        id SERIAL PRIMARY KEY,
-        telegram_id BIGINT UNIQUE NOT NULL,
-        name VARCHAR(255),
-        current_day INTEGER DEFAULT 1,
-        personalization_type VARCHAR(50),
-        notifications_enabled BOOLEAN DEFAULT true,
-        preferred_time TIME DEFAULT '09:00',
-        course_completed BOOLEAN DEFAULT false,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )`,
+    try {
+      // Сначала создаем основные таблицы
+      const createQueries = [
+        `CREATE TABLE IF NOT EXISTS users (
+          id SERIAL PRIMARY KEY,
+          telegram_id BIGINT UNIQUE NOT NULL,
+          name VARCHAR(255),
+          current_day INTEGER DEFAULT 1,
+          personalization_type VARCHAR(50),
+          notifications_enabled BOOLEAN DEFAULT true,
+          preferred_time TIME DEFAULT '09:00',
+          course_completed BOOLEAN DEFAULT false,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )`,
+        
+        `CREATE TABLE IF NOT EXISTS responses (
+          id SERIAL PRIMARY KEY,
+          user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+          day INTEGER NOT NULL,
+          question_type VARCHAR(100) NOT NULL,
+          response_text TEXT,
+          response_type VARCHAR(50) DEFAULT 'text',
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )`,
+        
+        `CREATE TABLE IF NOT EXISTS progress (
+          id SERIAL PRIMARY KEY,
+          user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+          day INTEGER NOT NULL,
+          completed BOOLEAN DEFAULT false,
+          completed_at TIMESTAMP,
+          skipped BOOLEAN DEFAULT false,
+          UNIQUE(user_id, day)
+        )`,
+        
+        `CREATE TABLE IF NOT EXISTS alerts (
+          id SERIAL PRIMARY KEY,
+          user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+          trigger_word VARCHAR(255),
+          message TEXT,
+          handled BOOLEAN DEFAULT false,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )`,
 
-      // Добавляем новое поле is_paused если его нет
-      `ALTER TABLE users ADD COLUMN IF NOT EXISTS is_paused BOOLEAN DEFAULT false`,
-      
-      `CREATE TABLE IF NOT EXISTS responses (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-        day INTEGER NOT NULL,
-        question_type VARCHAR(100) NOT NULL,
-        response_text TEXT,
-        response_type VARCHAR(50) DEFAULT 'text',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )`,
-      
-      `CREATE TABLE IF NOT EXISTS progress (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-        day INTEGER NOT NULL,
-        completed BOOLEAN DEFAULT false,
-        completed_at TIMESTAMP,
-        skipped BOOLEAN DEFAULT false,
-        UNIQUE(user_id, day)
-      )`,
-      
-      `CREATE TABLE IF NOT EXISTS alerts (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-        trigger_word VARCHAR(255),
-        message TEXT,
-        handled BOOLEAN DEFAULT false,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )`,
+        `CREATE TABLE IF NOT EXISTS reminder_log (
+          id SERIAL PRIMARY KEY,
+          user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+          day INTEGER NOT NULL,
+          reminder_type VARCHAR(50) NOT NULL,
+          sent_date DATE DEFAULT CURRENT_DATE,
+          sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          UNIQUE(user_id, day, reminder_type, sent_date)
+        )`
+      ];
 
-      // Новая таблица для отслеживания отправленных напоминаний
-      `CREATE TABLE IF NOT EXISTS reminder_log (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-        day INTEGER NOT NULL,
-        reminder_type VARCHAR(50) NOT NULL,
-        sent_date DATE DEFAULT CURRENT_DATE,
-        sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(user_id, day, reminder_type, sent_date)
-      )`,
-
-      // Индексы для производительности (только после того как все поля существуют)
-      `CREATE INDEX IF NOT EXISTS idx_users_telegram_id ON users(telegram_id)`,
-      `CREATE INDEX IF NOT EXISTS idx_users_active ON users(course_completed, is_paused, current_day)`,
-      `CREATE INDEX IF NOT EXISTS idx_responses_user_day ON responses(user_id, day)`,
-      `CREATE INDEX IF NOT EXISTS idx_alerts_handled ON alerts(handled, created_at)`,
-      `CREATE INDEX IF NOT EXISTS idx_reminder_log_user_day ON reminder_log(user_id, day, reminder_type, sent_date)`
-    ];
-
-    for (const query of queries) {
-      try {
+      // Выполняем создание таблиц
+      for (const query of createQueries) {
         await this.pool.query(query);
-        console.log(`✅ Выполнен запрос: ${query.substring(0, 50)}...`);
-      } catch (error) {
-        console.error(`❌ Ошибка в запросе: ${query.substring(0, 50)}...`);
-        console.error('Детали ошибки:', error);
-        throw error;
+        console.log(`✅ Создана таблица: ${query.substring(0, 30)}...`);
       }
+
+      // Безопасно добавляем поле is_paused если его нет
+      try {
+        const checkColumn = await this.pool.query(`
+          SELECT column_name 
+          FROM information_schema.columns 
+          WHERE table_name = 'users' AND column_name = 'is_paused'
+        `);
+        
+        if (checkColumn.rows.length === 0) {
+          await this.pool.query(`ALTER TABLE users ADD COLUMN is_paused BOOLEAN DEFAULT false`);
+          console.log(`✅ Добавлено поле is_paused в таблицу users`);
+        } else {
+          console.log(`ℹ️ Поле is_paused уже существует в таблице users`);
+        }
+      } catch (alterError) {
+        console.error('❌ Ошибка добавления поля is_paused:', alterError);
+        // Не падаем, продолжаем без этого поля
+      }
+
+      // Создаем базовые индексы (без is_paused)
+      const basicIndexes = [
+        `CREATE INDEX IF NOT EXISTS idx_users_telegram_id ON users(telegram_id)`,
+        `CREATE INDEX IF NOT EXISTS idx_responses_user_day ON responses(user_id, day)`,
+        `CREATE INDEX IF NOT EXISTS idx_alerts_handled ON alerts(handled, created_at)`,
+        `CREATE INDEX IF NOT EXISTS idx_reminder_log_user_day ON reminder_log(user_id, day, reminder_type, sent_date)`
+      ];
+
+      for (const query of basicIndexes) {
+        try {
+          await this.pool.query(query);
+          console.log(`✅ Создан индекс: ${query.substring(20, 50)}...`);
+        } catch (err) {
+          const error = err as Error;
+          console.error(`❌ Ошибка создания индекса: ${error.message || 'Неизвестная ошибка'}`);
+        }
+      }
+
+      // Пробуем создать индекс с is_paused только если поле существует
+      try {
+        await this.pool.query(`CREATE INDEX IF NOT EXISTS idx_users_active ON users(course_completed, current_day)`);
+        console.log(`✅ Создан индекс idx_users_active (без is_paused)`);
+      } catch (err) {
+        const error = err as Error;
+        console.log(`ℹ️ Создание расширенного индекса пропущено: ${error.message || 'Неизвестная ошибка'}`);
+      }
+
+    } catch (error) {
+      console.error('❌ Критическая ошибка при создании таблиц:', error);
+      throw error;
     }
   }
 
@@ -152,28 +188,89 @@ export class Database {
   }
 
   async pauseUser(telegramId: number): Promise<void> {
-    const query = 'UPDATE users SET is_paused = true, updated_at = CURRENT_TIMESTAMP WHERE telegram_id = $1';
-    await this.pool.query(query, [telegramId]);
+    try {
+      // Проверяем существование поля is_paused
+      const checkColumn = await this.pool.query(`
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name = 'users' AND column_name = 'is_paused'
+      `);
+      
+      if (checkColumn.rows.length > 0) {
+        const query = 'UPDATE users SET is_paused = true, updated_at = CURRENT_TIMESTAMP WHERE telegram_id = $1';
+        await this.pool.query(query, [telegramId]);
+        console.log(`✅ Пользователь ${telegramId} поставлен на паузу`);
+      } else {
+        console.log(`ℹ️ Поле is_paused не существует, пауза не установлена для ${telegramId}`);
+      }
+    } catch (error) {
+      console.error('❌ Ошибка в pauseUser:', error);
+      // Не падаем, просто логируем
+    }
   }
 
   async resumeUser(telegramId: number): Promise<void> {
-    const query = 'UPDATE users SET is_paused = false, updated_at = CURRENT_TIMESTAMP WHERE telegram_id = $1';
-    await this.pool.query(query, [telegramId]);
+    try {
+      // Проверяем существование поля is_paused
+      const checkColumn = await this.pool.query(`
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name = 'users' AND column_name = 'is_paused'
+      `);
+      
+      if (checkColumn.rows.length > 0) {
+        const query = 'UPDATE users SET is_paused = false, updated_at = CURRENT_TIMESTAMP WHERE telegram_id = $1';
+        await this.pool.query(query, [telegramId]);
+        console.log(`✅ Пользователь ${telegramId} снят с паузы`);
+      } else {
+        console.log(`ℹ️ Поле is_paused не существует, возобновление не требуется для ${telegramId}`);
+      }
+    } catch (error) {
+      console.error('❌ Ошибка в resumeUser:', error);
+      // Не падаем, просто логируем
+    }
   }
 
   // НОВЫЙ МЕТОД: Получение активных пользователей для отправки напоминаний
   async getActiveUsers(): Promise<DbUser[]> {
-    const query = `
-      SELECT * FROM users 
-      WHERE course_completed = false 
-        AND is_paused = false 
-        AND notifications_enabled = true 
-        AND current_day BETWEEN 1 AND 7
-        AND updated_at > NOW() - INTERVAL '30 days'
-      ORDER BY current_day, created_at
-    `;
-    const result = await this.pool.query(query);
-    return result.rows;
+    try {
+      // Сначала проверяем, существует ли поле is_paused
+      const checkColumn = await this.pool.query(`
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name = 'users' AND column_name = 'is_paused'
+      `);
+      
+      let query: string;
+      if (checkColumn.rows.length > 0) {
+        // Если поле is_paused существует, используем его
+        query = `
+          SELECT * FROM users 
+          WHERE course_completed = false 
+            AND (is_paused = false OR is_paused IS NULL)
+            AND notifications_enabled = true 
+            AND current_day BETWEEN 1 AND 7
+            AND updated_at > NOW() - INTERVAL '30 days'
+          ORDER BY current_day, created_at
+        `;
+      } else {
+        // Если поля is_paused нет, работаем без него
+        query = `
+          SELECT * FROM users 
+          WHERE course_completed = false 
+            AND notifications_enabled = true 
+            AND current_day BETWEEN 1 AND 7
+            AND updated_at > NOW() - INTERVAL '30 days'
+          ORDER BY current_day, created_at
+        `;
+      }
+      
+      const result = await this.pool.query(query);
+      return result.rows;
+    } catch (error) {
+      console.error('❌ Ошибка в getActiveUsers:', error);
+      return [];
+    }
   }
 
   // НОВЫЙ МЕТОД: Проверка, было ли уже отправлено напоминание сегодня
