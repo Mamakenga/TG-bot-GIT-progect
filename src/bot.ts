@@ -337,12 +337,10 @@ class SelfCareBot {
 
           await this.bot.sendMessage(user.telegram_id, dayContent.eveningMessage, {
             reply_markup: dayContent.options ? {
-              inline_keyboard: [
-                dayContent.options.map((option, index) => ({
-                  text: option.text,
-                  callback_data: `day_${currentDay}_evening_${index}`
-                }))
-              ]
+              inline_keyboard: dayContent.options.map((option, index) => [{
+  text: option.text,
+  callback_data: `day_${currentDay}_morning_${index}`
+}])
             } : undefined
           });
 
@@ -977,12 +975,10 @@ private async handleTest(msg: TelegramBot.Message): Promise<void> {
     // Утреннее сообщение
     await this.bot.sendMessage(chatId, dayContent.morningMessage, {
       reply_markup: dayContent.options ? {
-        inline_keyboard: [
-          dayContent.options.map((option, index) => ({
-            text: option.text,
-            callback_data: `day_${currentDay}_morning_${index}`
-          }))
-        ]
+        inline_keyboard: dayContent.options.map((option, index) => [{
+  text: option.text,
+  callback_data: `day_${currentDay}_evening_${index}`
+}])
       } : undefined
     });
 
