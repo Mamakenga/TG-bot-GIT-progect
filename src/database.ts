@@ -5,11 +5,12 @@ export interface DbUser {
   id: number;
   telegram_id: number;
   name: string | null;
-  current_day: number;  // Исправлено: используем current_day как в базе
+  current_day: number;
   personalization_type: string | null;
   notifications_enabled: boolean;
   preferred_time: string;
   course_completed: boolean;
+  is_paused: boolean;
   created_at: Date;
   updated_at: Date;
 }
@@ -24,7 +25,6 @@ export class Database {
   private pool: Pool;
 
   constructor() {
-    // Автоматическая настройка для Railway/Render/Heroku
     const connectionConfig = {
       connectionString: config.database.url,
       ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
@@ -54,6 +54,7 @@ export class Database {
         notifications_enabled BOOLEAN DEFAULT true,
         preferred_time TIME DEFAULT '09:00',
         course_completed BOOLEAN DEFAULT false,
+        is_paused BOOLEAN DEFAULT false,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )`,
@@ -87,10 +88,22 @@ export class Database {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )`,
 
+      // Новая таблица для отслеживания отправленных напоминаний
+      `CREATE TABLE IF NOT EXISTS reminder_log (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        day INTEGER NOT NULL,
+        reminder_type VARCHAR(50) NOT NULL, -- 'morning', 'exercise', 'phrase', 'evening'
+        sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, day, reminder_type, sent_at::date)
+      )`,
+
       // Индексы для производительности
       `CREATE INDEX IF NOT EXISTS idx_users_telegram_id ON users(telegram_id)`,
+      `CREATE INDEX IF NOT EXISTS idx_users_active ON users(course_completed, is_paused, current_day)`,
       `CREATE INDEX IF NOT EXISTS idx_responses_user_day ON responses(user_id, day)`,
-      `CREATE INDEX IF NOT EXISTS idx_alerts_handled ON alerts(handled, created_at)`
+      `CREATE INDEX IF NOT EXISTS idx_alerts_handled ON alerts(handled, created_at)`,
+      `CREATE INDEX IF NOT EXISTS idx_reminder_log_user_day ON reminder_log(user_id, day, reminder_type)`
     ];
 
     for (const query of queries) {
@@ -125,6 +138,52 @@ export class Database {
   async setPersonalization(telegramId: number, type: string): Promise<void> {
     const query = 'UPDATE users SET personalization_type = $1, updated_at = CURRENT_TIMESTAMP WHERE telegram_id = $2';
     await this.pool.query(query, [type, telegramId]);
+  }
+
+  async pauseUser(telegramId: number): Promise<void> {
+    const query = 'UPDATE users SET is_paused = true, updated_at = CURRENT_TIMESTAMP WHERE telegram_id = $1';
+    await this.pool.query(query, [telegramId]);
+  }
+
+  async resumeUser(telegramId: number): Promise<void> {
+    const query = 'UPDATE users SET is_paused = false, updated_at = CURRENT_TIMESTAMP WHERE telegram_id = $1';
+    await this.pool.query(query, [telegramId]);
+  }
+
+  // НОВЫЙ МЕТОД: Получение активных пользователей для отправки напоминаний
+  async getActiveUsers(): Promise<DbUser[]> {
+    const query = `
+      SELECT * FROM users 
+      WHERE course_completed = false 
+        AND is_paused = false 
+        AND notifications_enabled = true 
+        AND current_day BETWEEN 1 AND 7
+        AND updated_at > NOW() - INTERVAL '30 days'
+      ORDER BY current_day, created_at
+    `;
+    const result = await this.pool.query(query);
+    return result.rows;
+  }
+
+  // НОВЫЙ МЕТОД: Проверка, было ли уже отправлено напоминание сегодня
+  async wasReminderSentToday(userId: number, day: number, reminderType: string): Promise<boolean> {
+    const query = `
+      SELECT COUNT(*) as count FROM reminder_log 
+      WHERE user_id = $1 AND day = $2 AND reminder_type = $3 
+        AND sent_at::date = CURRENT_DATE
+    `;
+    const result = await this.pool.query(query, [userId, day, reminderType]);
+    return parseInt(result.rows[0].count) > 0;
+  }
+
+  // НОВЫЙ МЕТОД: Логирование отправленного напоминания
+  async logReminderSent(userId: number, day: number, reminderType: string): Promise<void> {
+    const query = `
+      INSERT INTO reminder_log (user_id, day, reminder_type) 
+      VALUES ($1, $2, $3)
+      ON CONFLICT (user_id, day, reminder_type, sent_at::date) DO NOTHING
+    `;
+    await this.pool.query(query, [userId, day, reminderType]);
   }
 
   async saveResponse(userId: number, day: number, questionType: string, responseText: string, responseType: string = 'text'): Promise<void> {
@@ -183,6 +242,45 @@ export class Database {
     return stats;
   }
 
+  // НОВЫЙ МЕТОД: Расширенная статистика
+  async getDetailedStats(): Promise<any> {
+    const queries = {
+      usersByDay: `
+        SELECT current_day, COUNT(*) as count 
+        FROM users 
+        WHERE course_completed = false AND is_paused = false
+        GROUP BY current_day 
+        ORDER BY current_day
+      `,
+      completionRate: `
+        SELECT 
+          day,
+          COUNT(*) as completed
+        FROM progress 
+        WHERE completed = true 
+        GROUP BY day 
+        ORDER BY day
+      `,
+      dailyActivity: `
+        SELECT 
+          DATE(created_at) as date,
+          COUNT(*) as responses
+        FROM responses 
+        WHERE created_at > NOW() - INTERVAL '7 days'
+        GROUP BY DATE(created_at)
+        ORDER BY date
+      `
+    };
+
+    const results: any = {};
+    for (const [key, query] of Object.entries(queries)) {
+      const result = await this.pool.query(query);
+      results[key] = result.rows;
+    }
+
+    return results;
+  }
+
   async getAllResponses(): Promise<any[]> {
     const query = `
       SELECT 
@@ -211,6 +309,7 @@ export class Database {
         current_day as "Текущий день",
         personalization_type as "Тип персонализации",
         course_completed as "Курс завершен",
+        is_paused as "На паузе",
         created_at as "Дата регистрации",
         updated_at as "Последняя активность"
       FROM users 

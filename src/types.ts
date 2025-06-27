@@ -1,33 +1,59 @@
+// Базовые типы для телеграм-бота заботы о себе
+
 export interface User {
   id: number;
   telegram_id: number;
-  name?: string;
-  current_day: number;  // Исправлено: используем current_day как в базе
-  personalization_type?: string;
+  name: string | null;
+  current_day: number;
+  personalization_type: string | null;
   notifications_enabled: boolean;
   preferred_time: string;
   course_completed: boolean;
+  is_paused: boolean;
   created_at: Date;
   updated_at: Date;
 }
 
-export interface CourseDay {
+export interface Response {
+  id: number;
+  user_id: number;
   day: number;
-  title: string;
-  baseContent: string;
-  options?: CourseOption[];
-  followUp?: string;
+  question_type: string;
+  response_text: string;
+  response_type: 'text' | 'button' | 'emoji';
+  created_at: Date;
 }
 
-export interface CourseOption {
-  text: string;
-  response: string;
-  callback?: string;
-}
-
-export interface AlertResponse {
+export interface Alert {
+  id: number;
+  user_id: number;
   trigger_word: string;
   message: string;
   handled: boolean;
   created_at: Date;
 }
+
+export interface Stats {
+  totalUsers: number;
+  activeToday: number;
+  completedCourse: number;
+}
+
+export interface CourseOption {
+  text: string;
+  callback_data: string;
+  response: string;
+}
+
+export interface CourseDay {
+  day: number;
+  title: string;
+  morningMessage: string;
+  exerciseMessage: string;
+  phraseOfDay: string;
+  eveningMessage: string;
+  options?: CourseOption[];
+}
+
+export type ReminderType = 'morning' | 'exercise' | 'phrase' | 'evening';
+export type PersonalizationType = 'critical' | 'trying' | 'normal' | 'unsure';

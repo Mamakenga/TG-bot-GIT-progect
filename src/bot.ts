@@ -5,9 +5,10 @@ import express from 'express';
 import cors from 'cors';
 import cron from 'node-cron';
 import { config } from './config';
-import { Database } from './database';
-import { courseContent } from './course-logic';
-import { checkForAlerts, sendAlert, createCSV } from './utils';
+import { Database, DbUser } from './database';
+import { courseContent, getDayContent } from './course-logic';
+import { checkForAlerts, sendAlert } from './utils';
+import { ReminderType } from './types';
 
 class SelfCareBot {
   private bot: TelegramBot;
@@ -15,16 +16,9 @@ class SelfCareBot {
   private database: Database;
 
   constructor() {
-    // Создаем бота с настройками для предотвращения дублирования
     this.bot = new TelegramBot(config.telegram.token, { 
       polling: false,
-      request: {
-        agentOptions: {
-          keepAlive: true,
-          family: 4
-        },
-        timeout: 30000 // 30 секунд таймаут
-      }
+      webHook: false
     });
     
     this.app = express();
@@ -41,9 +35,8 @@ class SelfCareBot {
     this.app.use(express.json({ limit: '10mb' }));
     this.app.use(express.static('public'));
     
-    // Таймаут для всех запросов
     this.app.use((req, res, next) => {
-      req.setTimeout(25000); // 25 секунд на обработку запроса
+      req.setTimeout(25000);
       next();
     });
   }
@@ -51,19 +44,16 @@ class SelfCareBot {
   async init(): Promise<void> {
     await this.database.init();
     
-    // Запускаем ОДИН сервер для всего
     const PORT = Number(process.env.PORT) || 3000;
     
     this.app.listen(PORT, () => {
       console.log(`🚀 Сервер запущен на порту ${PORT}`);
       console.log(`🤖 Telegram бот активен`);
-      console.log(`📊 Дашборд: https://tg-bot-git-progect-production.up.railway.app/dashboard`);
+      console.log(`📊 Дашборд: ${process.env.DASHBOARD_URL || 'http://localhost:3000'}/dashboard`);
       
-      // ПОСЛЕ запуска сервера устанавливаем webhook
       if (process.env.NODE_ENV === 'production') {
         this.setupWebhook();
       } else {
-        // В разработке используем polling
         this.bot.startPolling();
         console.log('🔄 Polling режим активен');
       }
@@ -82,22 +72,15 @@ class SelfCareBot {
   }
 
   private setupHandlers(): void {
-    // ИСПРАВЛЕННЫЙ webhook endpoint - ключ к решению проблемы дублирования!
+    // Webhook endpoint для Telegram
     this.app.post(`/bot${config.telegram.token}`, async (req, res) => {
       try {
         console.log('📨 Получено обновление от Telegram');
-        
-        // Обрабатываем обновление ПЕРЕД отправкой ответа Telegram
         await this.bot.processUpdate(req.body);
-        
-        // Отправляем успешный ответ ТОЛЬКО после полной обработки
         res.status(200).json({ ok: true });
         console.log('✅ Обновление обработано успешно');
-        
       } catch (error) {
         console.error('❌ Ошибка обработки webhook:', error);
-        
-        // Даже при ошибке отправляем 200, чтобы Telegram не переотправлял
         res.status(200).json({ ok: false, error: 'Internal error' });
       }
     });
@@ -115,12 +98,11 @@ class SelfCareBot {
     // Текстовые сообщения
     this.bot.on('message', this.handleText.bind(this));
 
-    // Обработка ошибок бота
+    // Обработка ошибок
     this.bot.on('error', (error) => {
       console.error('❌ Ошибка Telegram бота:', error);
     });
 
-    // Глобальная обработка необработанных ошибок
     process.on('unhandledRejection', (reason, promise) => {
       console.error('❌ Unhandled Rejection at:', promise, 'reason:', reason);
     });
@@ -130,223 +112,235 @@ class SelfCareBot {
     });
   }
 
-  // === ADMIN ROUTES ===
+  // === СИСТЕМА НАПОМИНАНИЙ ===
+  private setupReminders(): void {
+    // Утренние сообщения - 9:00 по UTC (12:00 по московскому времени)
+    cron.schedule('0 9 * * *', async () => {
+      console.log('⏰ Отправка утренних напоминаний...');
+      await this.sendMorningMessages();
+    }, {
+      timezone: "Europe/Moscow"
+    });
+
+    // Дневные упражнения - 13:00 по московскому времени
+    cron.schedule('0 13 * * *', async () => {
+      console.log('⏰ Отправка дневных упражнений...');
+      await this.sendExerciseMessages();
+    }, {
+      timezone: "Europe/Moscow"
+    });
+
+    // Фразы дня - 16:00 по московскому времени  
+    cron.schedule('0 16 * * *', async () => {
+      console.log('⏰ Отправка фраз дня...');
+      await this.sendPhraseMessages();
+    }, {
+      timezone: "Europe/Moscow"
+    });
+
+    // Вечерние рефлексии - 20:00 по московскому времени
+    cron.schedule('0 20 * * *', async () => {
+      console.log('⏰ Отправка вечерних рефлексий...');
+      await this.sendEveningMessages();
+    }, {
+      timezone: "Europe/Moscow"
+    });
+
+    console.log('⏰ Напоминания настроены на московское время:');
+    console.log('   🌅 09:00 - Утренние сообщения');  
+    console.log('   🌸 13:00 - Упражнения дня');
+    console.log('   💝 16:00 - Фразы дня');
+    console.log('   🌙 20:00 - Вечерние рефлексии');
+  }
+
+  // Утренние сообщения - новый день курса
+  private async sendMorningMessages(): Promise<void> {
+    try {
+      const activeUsers = await this.database.getActiveUsers();
+      console.log(`📊 Найдено ${activeUsers.length} активных пользователей`);
+
+      for (const user of activeUsers) {
+        try {
+          // Проверяем, не завершен ли курс
+          if (user.course_completed || user.current_day > 7) {
+            continue;
+          }
+
+          const dayContent = getDayContent(user.current_day);
+          if (!dayContent) {
+            console.log(`⚠️ Контент для дня ${user.current_day} не найден`);
+            continue;
+          }
+
+          // Отправляем утреннее сообщение
+          await this.bot.sendMessage(user.telegram_id, dayContent.morningMessage, {
+            reply_markup: dayContent.options ? {
+              inline_keyboard: [
+                dayContent.options.map((option, index) => ({
+                  text: option.text,
+                  callback_data: `day_${user.current_day}_morning_${index}`
+                }))
+              ]
+            } : undefined
+          });
+
+          console.log(`✅ Утреннее сообщение отправлено пользователю ${user.telegram_id} (день ${user.current_day})`);
+          
+          // Небольшая задержка между отправками
+          await new Promise(resolve => setTimeout(resolve, 100));
+
+        } catch (userError) {
+          console.error(`❌ Ошибка отправки утреннего сообщения пользователю ${user.telegram_id}:`, userError);
+        }
+      }
+    } catch (error) {
+      console.error('❌ Ошибка в sendMorningMessages:', error);
+    }
+  }
+
+  // Дневные упражнения
+  private async sendExerciseMessages(): Promise<void> {
+    try {
+      const activeUsers = await this.database.getActiveUsers();
+
+      for (const user of activeUsers) {
+        try {
+          if (user.course_completed || user.current_day > 7) continue;
+
+          const dayContent = getDayContent(user.current_day);
+          if (!dayContent) continue;
+
+          await this.bot.sendMessage(user.telegram_id, dayContent.exerciseMessage, {
+            reply_markup: {
+              inline_keyboard: [[
+                { text: '✅ Готова попробовать', callback_data: `day_${user.current_day}_exercise_ready` },
+                { text: '❓ Нужна помощь', callback_data: `day_${user.current_day}_exercise_help` },
+                { text: '⏰ Сделаю позже', callback_data: `day_${user.current_day}_exercise_later` }
+              ]]
+            }
+          });
+
+          console.log(`✅ Упражнение отправлено пользователю ${user.telegram_id} (день ${user.current_day})`);
+          await new Promise(resolve => setTimeout(resolve, 100));
+
+        } catch (userError) {
+          console.error(`❌ Ошибка отправки упражнения пользователю ${user.telegram_id}:`, userError);
+        }
+      }
+    } catch (error) {
+      console.error('❌ Ошибка в sendExerciseMessages:', error);
+    }
+  }
+
+  // Фразы дня
+  private async sendPhraseMessages(): Promise<void> {
+    try {
+      const activeUsers = await this.database.getActiveUsers();
+
+      for (const user of activeUsers) {
+        try {
+          if (user.course_completed || user.current_day > 7) continue;
+
+          const dayContent = getDayContent(user.current_day);
+          if (!dayContent) continue;
+
+          await this.bot.sendMessage(user.telegram_id, dayContent.phraseOfDay, {
+            reply_markup: {
+              inline_keyboard: [[
+                { text: '💙 Откликается', callback_data: `day_${user.current_day}_phrase_good` },
+                { text: '🤔 Звучит странно', callback_data: `day_${user.current_day}_phrase_strange` },
+                { text: '😔 Сложно поверить', callback_data: `day_${user.current_day}_phrase_hard` }
+              ]]
+            }
+          });
+
+          console.log(`✅ Фраза дня отправлена пользователю ${user.telegram_id} (день ${user.current_day})`);
+          await new Promise(resolve => setTimeout(resolve, 100));
+
+        } catch (userError) {
+          console.error(`❌ Ошибка отправки фразы пользователю ${user.telegram_id}:`, userError);
+        }
+      }
+    } catch (error) {
+      console.error('❌ Ошибка в sendPhraseMessages:', error);
+    }
+  }
+
+  // Вечерние рефлексии
+  private async sendEveningMessages(): Promise<void> {
+    try {
+      const activeUsers = await this.database.getActiveUsers();
+
+      for (const user of activeUsers) {
+        try {
+          if (user.course_completed || user.current_day > 7) continue;
+
+          const dayContent = getDayContent(user.current_day);
+          if (!dayContent) continue;
+
+          await this.bot.sendMessage(user.telegram_id, dayContent.eveningMessage, {
+            reply_markup: dayContent.options ? {
+              inline_keyboard: [
+                dayContent.options.map((option, index) => ({
+                  text: option.text,
+                  callback_data: `day_${user.current_day}_evening_${index}`
+                }))
+              ]
+            } : undefined
+          });
+
+          console.log(`✅ Вечернее сообщение отправлено пользователю ${user.telegram_id} (день ${user.current_day})`);
+          await new Promise(resolve => setTimeout(resolve, 100));
+
+        } catch (userError) {
+          console.error(`❌ Ошибка отправки вечернего сообщения пользователю ${user.telegram_id}:`, userError);
+        }
+      }
+    } catch (error) {
+      console.error('❌ Ошибка в sendEveningMessages:', error);
+    }
+  }
+
+  // === ADMIN ROUTES === (сокращено для экономии места)
   private setupAdminRoutes(): void {
-    // Простая аутентификация
     const authenticate = (req: express.Request, res: express.Response, next: express.NextFunction) => {
       const auth = req.headers.authorization;
-      
       if (!auth) {
         res.setHeader('WWW-Authenticate', 'Basic realm="Admin Dashboard"');
         return res.status(401).send('Требуется авторизация');
       }
-
       const credentials = Buffer.from(auth.split(' ')[1], 'base64').toString().split(':');
-      const username = credentials[0];
-      const password = credentials[1];
-
-      if (username === 'admin' && password === config.security.adminPassword) {
+      if (credentials[0] === 'admin' && credentials[1] === config.security.adminPassword) {
         next();
       } else {
         res.status(401).send('Неверные данные');
       }
     };
 
-    // Главная страница дашборда
     this.app.get('/dashboard', authenticate, async (req, res) => {
       try {
         const stats = await this.database.getStats();
         const alerts = await this.database.getAlerts();
         const unhandledAlerts = alerts.filter((alert: any) => !alert.handled).length;
         
-        const html = `
-<!DOCTYPE html>
+        const html = `<!DOCTYPE html>
 <html lang="ru">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Дашборд бота "Забота о себе"</title>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { 
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: #333;
-            line-height: 1.6;
-            min-height: 100vh;
-        }
-        .container { 
-            max-width: 1200px; 
-            margin: 0 auto; 
-            padding: 20px; 
-        }
-        .header {
-            background: rgba(255, 255, 255, 0.95);
-            color: #667eea;
-            padding: 30px;
-            text-align: center;
-            margin-bottom: 30px;
-            border-radius: 15px;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
-        }
-        .header h1 {
-            font-size: 2.5em;
-            margin-bottom: 10px;
-            background: linear-gradient(135deg, #667eea, #764ba2);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-            gap: 20px;
-            margin-bottom: 30px;
-        }
-        .stat-card {
-            background: rgba(255, 255, 255, 0.95);
-            padding: 30px;
-            border-radius: 15px;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
-            transition: transform 0.3s ease;
-        }
-        .stat-card:hover {
-            transform: translateY(-5px);
-        }
-        .stat-card h3 {
-            color: #667eea;
-            margin-bottom: 15px;
-            font-size: 1.2em;
-        }
-        .big-number {
-            font-size: 3em;
-            font-weight: bold;
-            background: linear-gradient(135deg, #667eea, #764ba2);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            margin: 15px 0;
-        }
-        .actions-card {
-            background: rgba(255, 255, 255, 0.95);
-            padding: 30px;
-            border-radius: 15px;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
-            margin-bottom: 20px;
-        }
-        .action-btn {
-            background: linear-gradient(135deg, #667eea, #764ba2);
-            color: white;
-            padding: 12px 24px;
-            border: none;
-            border-radius: 8px;
-            text-decoration: none;
-            display: inline-block;
-            margin: 8px 8px 8px 0;
-            transition: all 0.3s ease;
-        }
-        .action-btn:hover { 
-            transform: translateY(-2px);
-        }
-        .alert-badge {
-            background: #ff6b6b;
-            color: white;
-            border-radius: 50%;
-            padding: 4px 8px;
-            font-size: 0.8em;
-            margin-left: 8px;
-        }
-    </style>
-</head>
+<head><meta charset="UTF-8"><title>Дашборд бота</title></head>
 <body>
-    <div class="container">
-        <div class="header">
-            <h1>📊 Дашборд бота "Забота о себе"</h1>
-            <p>Аналитика и управление курсом самосострадания</p>
-        </div>
-
-        <div class="stats-grid">
-            <div class="stat-card">
-                <h3>👥 Пользователи</h3>
-                <div class="big-number">${stats.totalUsers}</div>
-                <p>Всего зарегистрировано</p>
-            </div>
-            
-            <div class="stat-card">
-                <h3>📈 Активность сегодня</h3>
-                <div class="big-number">${stats.activeToday}</div>
-                <p>Активных пользователей</p>
-            </div>
-            
-            <div class="stat-card">
-                <h3>🎯 Завершили курс</h3>
-                <div class="big-number">${stats.completedCourse}</div>
-                <p>Прошли все 7 дней</p>
-            </div>
-
-            <div class="stat-card">
-                <h3>🚨 Алерты ${unhandledAlerts > 0 ? `<span class="alert-badge">${unhandledAlerts}</span>` : ''}</h3>
-                <div class="big-number">${alerts.length}</div>
-                <p>Всего сигналов безопасности</p>
-            </div>
-        </div>
-
-        <div class="actions-card">
-            <h3>📤 Управление данными</h3>
-            <p>Экспорт и анализ данных пользователей:</p>
-            <div style="margin-top: 15px;">
-                <a href="/dashboard/export/responses" class="action-btn">📄 Ответы пользователей (CSV)</a>
-                <a href="/dashboard/export/users" class="action-btn">👥 Список пользователей (CSV)</a>
-                <a href="/dashboard/alerts" class="action-btn">🚨 Алерты безопасности</a>
-            </div>
-        </div>
-
-        <div style="text-align: center; color: rgba(255, 255, 255, 0.8); margin-top: 30px;">
-            <p>🕐 Последнее обновление: ${new Date().toLocaleString('ru-RU')}</p>
-        </div>
-    </div>
-</body>
-</html>`;
-
+<h1>📊 Дашборд бота "Забота о себе"</h1>
+<p>Пользователей: ${stats.totalUsers} | Активных сегодня: ${stats.activeToday} | Завершили курс: ${stats.completedCourse} | Алертов: ${alerts.length}${unhandledAlerts > 0 ? ` (${unhandledAlerts} новых)` : ''}</p>
+<p><a href="/dashboard/export/responses">📄 Экспорт ответов</a> | <a href="/dashboard/export/users">👥 Экспорт пользователей</a></p>
+</body></html>`;
         res.send(html);
       } catch (error) {
-        console.error('❌ Ошибка дашборда:', error);
         res.status(500).send(`Ошибка: ${error}`);
       }
     });
 
-    // Экспорт данных
-    this.app.get('/dashboard/export/responses', authenticate, async (req, res) => {
-      try {
-        const responses = await this.database.getAllResponses();
-        const csv = createCSV(responses, ['Имя', 'Telegram ID', 'День', 'Тип вопроса', 'Ответ', 'Дата']);
-        
-        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-        res.setHeader('Content-Disposition', 'attachment; filename=user-responses.csv');
-        res.send('\ufeff' + csv);
-      } catch (error) {
-        res.status(500).send('Ошибка экспорта: ' + error);
-      }
-    });
-
-    this.app.get('/dashboard/export/users', authenticate, async (req, res) => {
-      try {
-        const users = await this.database.getAllUsers();
-        const csv = createCSV(users, ['Имя', 'Telegram ID', 'Текущий день', 'Курс завершен', 'Дата регистрации']);
-        
-        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-        res.setHeader('Content-Disposition', 'attachment; filename=users.csv');
-        res.send('\ufeff' + csv);
-      } catch (error) {
-        res.status(500).send('Ошибка экспорта: ' + error);
-      }
-    });
-
-    // Редирект главной страницы на дашборд
-    this.app.get('/', (req, res) => {
-      res.redirect('/dashboard');
-    });
+    this.app.get('/', (req, res) => res.redirect('/dashboard'));
   }
 
-  // УЛУЧШЕННЫЕ ОБРАБОТЧИКИ С ЗАЩИТОЙ ОТ ОШИБОК
+  // === ОБРАБОТЧИКИ КОМАНД === (упрощены)
   private async handleStart(msg: TelegramBot.Message): Promise<void> {
     const chatId = msg.chat.id;
     const telegramId = msg.from?.id;
@@ -362,10 +356,9 @@ class SelfCareBot {
       await this.bot.sendMessage(chatId, 
         `🌸 Привет${name ? `, ${name}` : ''}! Я бот-помощник по заботе о себе.
 
-За 7 дней мы мягко исследуем, как быть добрее к себе. 
-Не через насилие или давление, а через понимание и заботу.
+За 7 дней мы мягко исследуем, как быть добрее к себе.
 
-Готова начать это путешествие к себе?`, {
+Готова начать это путешествие?`, {
         reply_markup: {
           inline_keyboard: [[
             { text: '🌱 Да, готова', callback_data: 'start_yes' },
@@ -375,16 +368,11 @@ class SelfCareBot {
         }
       });
       
-      console.log(`✅ Приветствие отправлено пользователю ${telegramId}`);
-      
     } catch (error) {
-      console.error(`❌ Ошибка в handleStart для пользователя ${telegramId}:`, error);
-      
+      console.error(`❌ Ошибка в handleStart:`, error);
       try {
-        await this.bot.sendMessage(chatId, 'Произошла ошибка. Попробуйте позже или напишите /start еще раз.');
-      } catch (sendError) {
-        console.error('❌ Не удалось отправить сообщение об ошибке:', sendError);
-      }
+        await this.bot.sendMessage(chatId, 'Произошла ошибка. Попробуйте /start еще раз.');
+      } catch {}
     }
   }
 
@@ -396,134 +384,84 @@ class SelfCareBot {
     if (!chatId || !data) return;
 
     try {
-      console.log(`🔘 Callback от пользователя ${telegramId}: ${data}`);
-      
-      // Сначала отвечаем на callback чтобы убрать "загрузку" на кнопке
       await this.bot.answerCallbackQuery(callbackQuery.id);
 
-      const user = await this.database.getUser(telegramId);
-      if (!user) {
-        console.log(`⚠️ Пользователь ${telegramId} не найден, создаем...`);
-        await this.handleStart(callbackQuery.message!);
-        return;
-      }
+      if (data === 'start_yes') {
+        await this.database.updateUserDay(telegramId, 1);
+        await this.bot.sendMessage(chatId, 
+          `🎉 Отлично! Ты записана на курс!\n\n` +
+          `Завтра в 9:00 утра тебе придет первое сообщение.\n` +
+          `За день будет 3-4 сообщения:\n` +
+          `🌅 09:00 - Утреннее приветствие\n` +
+          `🌸 13:00 - Упражнение дня\n` +
+          `💝 16:00 - Фраза для размышления\n` +
+          `🌙 20:00 - Вечерняя рефлексия\n\n` +
+          `Готова начать завтра? 💙`
+        );
+      } else if (data === 'more_info') {
+        const infoText = `📚 Курс состоит из 7 дней:\n\n` +
+          courseContent.map((day, index) => `📅 День ${index + 1}: ${day.title}`).join('\n') +
+          `\n\nКаждый день - 3-4 коротких сообщения.\nГотова попробовать?`;
 
-      switch (data) {
-        case 'start_yes':
-          await this.startDay1(chatId, telegramId);
-          break;
-        
-        case 'more_info':
-          await this.showCourseInfo(chatId);
-          break;
-
-        case 'later':
-          await this.bot.sendMessage(chatId, 'Понимаю 🤗 Забота о себе требует готовности.\n\nНапиши /start когда будешь готова.');
-          break;
-
-        default:
-          if (data.startsWith('day_')) {
-            await this.handleDayResponse(chatId, telegramId, data);
-          } else {
-            console.log(`⚠️ Неизвестный callback: ${data}`);
-          }
-      }
-      
-      console.log(`✅ Callback ${data} обработан для пользователя ${telegramId}`);
-      
-    } catch (error) {
-      console.error(`❌ Ошибка в handleCallback для пользователя ${telegramId}, data: ${data}:`, error);
-      
-      try {
-        // Всё равно отвечаем на callback чтобы убрать загрузку
-        await this.bot.answerCallbackQuery(callbackQuery.id, {
-          text: "Произошла ошибка. Попробуйте еще раз.",
-          show_alert: false
-        });
-      } catch (callbackError) {
-        console.error('❌ Не удалось ответить на callback:', callbackError);
-      }
-    }
-  }
-
-  private async startDay1(chatId: number, telegramId: number): Promise<void> {
-    const day1 = courseContent[0];
-    
-    await this.bot.sendMessage(chatId, day1.baseContent, {
-      reply_markup: {
-        inline_keyboard: [
-          day1.options?.map((option: any, index: number) => ({
-            text: option.text,
-            callback_data: `day_1_${index}`
-          })) || []
-        ]
-      }
-    });
-
-    await this.database.updateUserDay(telegramId, 1);
-  }
-
-  private async handleDayResponse(chatId: number, telegramId: number, data: string): Promise<void> {
-    const [, dayStr, optionStr] = data.split('_');
-    const day = parseInt(dayStr);
-    const optionIndex = parseInt(optionStr);
-
-    const dayContent = courseContent[day - 1];
-    const option = dayContent.options?.[optionIndex];
-
-    if (!option) return;
-
-    const user = await this.database.getUser(telegramId);
-    if (!user) return;
-
-    await this.database.saveResponse(user.id, day, 'button_choice', option.text);
-    await this.bot.sendMessage(chatId, option.response);
-    await this.scheduleNextDay(chatId, telegramId, day);
-  }
-
-  private async scheduleNextDay(chatId: number, telegramId: number, currentDay: number): Promise<void> {
-    if (currentDay < 7) {
-      setTimeout(async () => {
-        const nextDay = currentDay + 1;
-        const nextDayContent = courseContent[nextDay - 1];
-        
-        await this.bot.sendMessage(chatId, `🌅 День ${nextDay}: ${nextDayContent.title}\n\n${nextDayContent.baseContent}`, {
+        await this.bot.sendMessage(chatId, infoText, {
           reply_markup: {
-            inline_keyboard: [
-              nextDayContent.options?.map((option: any, index: number) => ({
-                text: option.text,
-                callback_data: `day_${nextDay}_${index}`
-              })) || []
-            ]
+            inline_keyboard: [[
+              { text: '🌱 Да, начинаем!', callback_data: 'start_yes' },
+              { text: '⏰ Позже', callback_data: 'later' }
+            ]]
           }
         });
+      } else if (data === 'later') {
+        await this.bot.sendMessage(chatId, 'Понимаю 🤗 Напиши /start когда будешь готова.');
+      }
 
-        await this.database.updateUserDay(telegramId, nextDay);
-      }, 60000);
-    } else {
-      await this.bot.sendMessage(chatId, 
-        `🎉 Поздравляю! Ты завершила 7-дневный курс заботы о себе!\n\n` +
-        `Это настоящее достижение. Ты проделала важную работу и научилась быть добрее к себе.\n\n` +
-        `Помни: забота о себе - это ежедневная практика. Используй полученные навыки и будь счастлива! 💙`
-      );
-      
-      await this.database.markCourseCompleted(telegramId);
+      // Обработка ответов на дни курса
+      if (data.startsWith('day_')) {
+        await this.handleDayCallback(chatId, telegramId, data);
+      }
+
+    } catch (error) {
+      console.error(`❌ Ошибка в handleCallback:`, error);
     }
   }
 
-  private async showCourseInfo(chatId: number): Promise<void> {
-    const infoText = `📚 Курс состоит из 7 дней:\n\n` +
-      courseContent.map((day: any, index: number) => `📅 День ${index + 1}: ${day.title}`).join('\n') +
-      `\n\nКаждое задание занимает 5-15 минут.\nГотова попробовать?`;
+  private async handleDayCallback(chatId: number, telegramId: number, data: string): Promise<void> {
+    try {
+      const user = await this.database.getUser(telegramId);
+      if (!user) return;
 
-    await this.bot.sendMessage(chatId, infoText, {
-      reply_markup: {
-        inline_keyboard: [[
-          { text: '🌱 Да, начинаем!', callback_data: 'start_yes' },
-          { text: '⏰ Позже', callback_data: 'later' }
-        ]]
+      // Сохраняем ответ пользователя
+      await this.database.saveResponse(user.id, user.current_day, 'button_choice', data);
+
+      // Отправляем подтверждение
+      const responses = [
+        'Спасибо за ответ! 💙',
+        'Важно, что ты откликаешься 🌸', 
+        'Твоя честность ценна 💙',
+        'Благодарю за участие 🤗'
+      ];
+      const randomResponse = responses[Math.floor(Math.random() * responses.length)];
+      
+      await this.bot.sendMessage(chatId, randomResponse);
+
+      // Если это вечернее сообщение - переводим на следующий день
+      if (data.includes('_evening_')) {
+        const nextDay = user.current_day + 1;
+        if (nextDay <= 7) {
+          await this.database.updateUserDay(telegramId, nextDay);
+          await this.database.markDayCompleted(user.id, user.current_day);
+        } else {
+          await this.database.markCourseCompleted(telegramId);
+          await this.bot.sendMessage(chatId, 
+            `🎉 Поздравляю! Ты завершила 7-дневный курс заботы о себе!\n\n` +
+            `Это настоящее достижение. Используй полученные навыки каждый день! 💙`
+          );
+        }
       }
-    });
+
+    } catch (error) {
+      console.error('❌ Ошибка в handleDayCallback:', error);
+    }
   }
 
   private async handleText(msg: TelegramBot.Message): Promise<void> {
@@ -536,23 +474,18 @@ class SelfCareBot {
     if (!telegramId || !text) return;
 
     try {
-      console.log(`💬 Сообщение от пользователя ${telegramId}: "${text.substring(0, 50)}..."`);
-      
       // Проверка на алерты
       const alertFound = await checkForAlerts(text);
       if (alertFound) {
-        console.log(`🚨 АЛЕРТ! Пользователь ${telegramId}, триггер: ${alertFound}`);
-        
         const user = await this.database.getUser(telegramId);
         if (user) {
           await this.database.createAlert(user.id, alertFound, text);
           await sendAlert(`🚨 АЛЕРТ от пользователя ${user.name || telegramId}:\n"${text}"`);
           
           await this.bot.sendMessage(chatId, 
-            `Я очень обеспокоена твоими словами 💙\nТвоя жизнь ценна и важна.\n\n` +
-            `Пожалуйста, обратись:\n📞 Телефон доверия: 8-800-2000-122 (круглосуточно)\n` +
-            `🚨 Служба экстренной помощи: 112\n💬 Сайт поддержки: www.harmony4soul.com\n\n` +
-            `Я остаюсь с тобой. Ты не одна.`
+            `Я очень обеспокоена твоими словами 💙\n\n` +
+            `Пожалуйста, обратись:\n📞 Телефон доверия: 8-800-2000-122\n` +
+            `🚨 Экстренная помощь: 112\n\nТы не одна.`
           );
           return;
         }
@@ -566,74 +499,46 @@ class SelfCareBot {
         const responses = [
           'Спасибо за откровенность 💙',
           'Благодарю за доверие 🌸',
-          'Твои слова важны для меня 💙',
+          'Твои слова важны 💙',
           'Спасибо, что поделилась 🤗'
         ];
         const randomResponse = responses[Math.floor(Math.random() * responses.length)];
         
         await this.bot.sendMessage(chatId, randomResponse);
-        console.log(`✅ Ответ отправлен пользователю ${telegramId}`);
       }
-      
     } catch (error) {
-      console.error(`❌ Ошибка в handleText для пользователя ${telegramId}:`, error);
-      
-      try {
-        await this.bot.sendMessage(chatId, 'Спасибо за сообщение 💙');
-      } catch (sendError) {
-        console.error('❌ Не удалось отправить запасной ответ:', sendError);
-      }
+      console.error('❌ Ошибка в handleText:', error);
     }
   }
 
   private async handleHelp(msg: TelegramBot.Message): Promise<void> {
     const helpText = `📋 Помощь по боту:\n\n` +
-      `🌸 Команды:\n/start - Начать программу заново\n/help - Показать эту справку\n` +
-      `/pause - Приостановить курс\n/resume - Возобновить курс\n\n` +
-      `💙 О программе:\nЭто 7-дневный курс заботы о себе. Каждый день включает упражнение и размышления.\n\n` +
-      `🆘 Поддержка:\nhelp@harmony4soul.com`;
-
+      `🌸 Команды:\n/start - Начать курс\n/help - Справка\n/pause - Пауза\n\n` +
+      `💙 О программе:\n7-дневный курс заботы о себе\n3-4 сообщения в день\n\n` +
+      `🆘 Поддержка: help@harmony4soul.com`;
     await this.bot.sendMessage(msg.chat.id, helpText);
   }
 
   private async handlePause(msg: TelegramBot.Message): Promise<void> {
-    await this.bot.sendMessage(msg.chat.id, 'Курс приостановлен. Напиши /resume когда будешь готова продолжить 💙');
+    await this.bot.sendMessage(msg.chat.id, 'Курс приостановлен. /start для возобновления 💙');
   }
 
   private async handleResume(msg: TelegramBot.Message): Promise<void> {
-    await this.bot.sendMessage(msg.chat.id, 'Курс возобновлен! Продолжаем путь заботы о себе 🌱');
+    await this.bot.sendMessage(msg.chat.id, 'Продолжаем путь заботы о себе 🌱');
   }
 
   private async handleStats(msg: TelegramBot.Message): Promise<void> {
     const telegramId = msg.from?.id;
-    
-    if (!telegramId || telegramId.toString() !== config.telegram.adminId) {
-      return;
-    }
+    if (!telegramId || telegramId.toString() !== config.telegram.adminId) return;
 
     try {
       const stats = await this.database.getStats();
-      
-      let statsText = `📊 Статистика:\n\n`;
-      statsText += `👥 Всего пользователей: ${stats.totalUsers}\n`;
-      statsText += `📈 Активных сегодня: ${stats.activeToday}\n`;
-      statsText += `🎯 Завершили курс: ${stats.completedCourse}\n\n`;
-      statsText += `📊 Дашборд: https://tg-bot-git-progect-production.up.railway.app/dashboard\n`;
-
+      const statsText = `📊 Статистика:\n\n` +
+        `👥 Всего: ${stats.totalUsers}\n📈 Сегодня: ${stats.activeToday}\n🎯 Завершили: ${stats.completedCourse}`;
       await this.bot.sendMessage(msg.chat.id, statsText);
     } catch (error) {
-      console.error('❌ Ошибка получения статистики:', error);
+      console.error('❌ Ошибка статистики:', error);
     }
-  }
-
-  private setupReminders(): void {
-    cron.schedule('0 9 * * *', async () => {
-      console.log('⏰ Отправка утренних напоминаний...');
-    });
-
-    cron.schedule('0 20 * * *', async () => {
-      console.log('⏰ Отправка вечерних напоминаний...');
-    });
   }
 }
 
