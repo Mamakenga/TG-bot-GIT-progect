@@ -134,49 +134,37 @@ class SelfCareBot {
     // Обработка ошибок
     this.bot.on('error', (error) => {
       console.error('❌ Ошибка Telegram бота:', error.message);
+      // Не падаем, просто логируем
     });
 
     this.bot.on('polling_error', (error) => {
       console.error('❌ Ошибка polling:', error.message);
+      // Не падаем, просто логируем
     });
 
     this.bot.on('webhook_error', (error) => {
       console.error('❌ Ошибка webhook:', error.message);
+      // Не падаем, просто логируем
     });
 
     // Глобальная обработка ошибок
     process.on('unhandledRejection', (reason, promise) => {
       console.error('❌ Unhandled Rejection:', reason);
+      // Не падаем, просто логируем
     });
 
     process.on('uncaughtException', (error) => {
       console.error('❌ Uncaught Exception:', error.message);
+      // При критической ошибке корректно завершаемся
       setTimeout(() => {
         process.exit(1);
       }, 1000);
     });
   }
 
-  // === МЕТОД ДЛЯ СОЗДАНИЯ CSV ===
-  private createCSV(data: any[], headers: string[]): string {
-    let csv = headers.join(',') + '\n';
-    
-    for (const row of data) {
-      const values = headers.map(header => {
-        const value = row[header] || '';
-        if (typeof value === 'string' && (value.includes(',') || value.includes('"') || value.includes('\n'))) {
-          return `"${value.replace(/"/g, '""')}"`;
-        }
-        return value;
-      });
-      csv += values.join(',') + '\n';
-    }
-    
-    return csv;
-  }
-
   // === СИСТЕМА НАПОМИНАНИЙ ===
   private setupReminders(): void {
+    // Утренние сообщения - 9:00 по UTC (12:00 по московскому времени)
     cron.schedule('0 9 * * *', async () => {
       console.log('⏰ Отправка утренних напоминаний...');
       await this.sendMorningMessages();
@@ -184,6 +172,7 @@ class SelfCareBot {
       timezone: "Europe/Moscow"
     });
 
+    // Дневные упражнения - 13:00 по московскому времени
     cron.schedule('0 13 * * *', async () => {
       console.log('⏰ Отправка дневных упражнений...');
       await this.sendExerciseMessages();
@@ -191,6 +180,7 @@ class SelfCareBot {
       timezone: "Europe/Moscow"
     });
 
+    // Фразы дня - 16:00 по московскому времени  
     cron.schedule('0 16 * * *', async () => {
       console.log('⏰ Отправка фраз дня...');
       await this.sendPhraseMessages();
@@ -198,6 +188,7 @@ class SelfCareBot {
       timezone: "Europe/Moscow"
     });
 
+    // Вечерние рефлексии - 20:00 по московскому времени
     cron.schedule('0 20 * * *', async () => {
       console.log('⏰ Отправка вечерних рефлексий...');
       await this.sendEveningMessages();
@@ -212,6 +203,7 @@ class SelfCareBot {
     console.log('   🌙 20:00 - Вечерние рефлексии');
   }
 
+  // Утренние сообщения - новый день курса
   private async sendMorningMessages(): Promise<void> {
     try {
       const activeUsers = await this.database.getActiveUsers();
@@ -219,6 +211,7 @@ class SelfCareBot {
 
       for (const user of activeUsers) {
         try {
+          // Проверяем, не завершен ли курс
           if (user.course_completed || (user.current_day || 1) > 7) {
             continue;
           }
@@ -230,6 +223,7 @@ class SelfCareBot {
             continue;
           }
 
+          // Отправляем утреннее сообщение
           await this.bot.sendMessage(user.telegram_id, dayContent.morningMessage, {
             reply_markup: dayContent.options ? {
               inline_keyboard: [
@@ -242,6 +236,8 @@ class SelfCareBot {
           });
 
           console.log(`✅ Утреннее сообщение отправлено пользователю ${user.telegram_id} (день ${currentDay})`);
+          
+          // Небольшая задержка между отправками
           await new Promise(resolve => setTimeout(resolve, 100));
 
         } catch (userError) {
@@ -253,6 +249,7 @@ class SelfCareBot {
     }
   }
 
+  // Дневные упражнения
   private async sendExerciseMessages(): Promise<void> {
     try {
       const activeUsers = await this.database.getActiveUsers();
@@ -287,6 +284,7 @@ class SelfCareBot {
     }
   }
 
+  // Фразы дня
   private async sendPhraseMessages(): Promise<void> {
     try {
       const activeUsers = await this.database.getActiveUsers();
@@ -321,6 +319,7 @@ class SelfCareBot {
     }
   }
 
+  // Вечерние рефлексии
   private async sendEveningMessages(): Promise<void> {
     try {
       const activeUsers = await this.database.getActiveUsers();
@@ -356,7 +355,7 @@ class SelfCareBot {
     }
   }
 
-  // === АДМИН РОУТЫ ===
+  // === ADMIN ROUTES === (сокращено для экономии места)
   private setupAdminRoutes(): void {
     const authenticate = (req: express.Request, res: express.Response, next: express.NextFunction) => {
       const auth = req.headers.authorization;
@@ -372,7 +371,6 @@ class SelfCareBot {
       }
     };
 
-    // КРАСИВЫЙ ДАШБОРД
     this.app.get('/dashboard', authenticate, async (req, res) => {
       try {
         const stats = await this.database.getStats();
@@ -381,186 +379,50 @@ class SelfCareBot {
         
         const html = `<!DOCTYPE html>
 <html lang="ru">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Дашборд бота "Забота о себе"</title>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { 
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: #333;
-            line-height: 1.6;
-            min-height: 100vh;
-            padding: 20px;
-        }
-        .container { 
-            max-width: 1200px; 
-            margin: 0 auto;
-        }
-        .header {
-            background: rgba(255, 255, 255, 0.95);
-            color: #667eea;
-            padding: 30px;
-            text-align: center;
-            margin-bottom: 30px;
-            border-radius: 15px;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
-        }
-        .header h1 {
-            font-size: 2.5em;
-            margin-bottom: 10px;
-            background: linear-gradient(135deg, #667eea, #764ba2);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-            gap: 20px;
-            margin-bottom: 30px;
-        }
-        .stat-card {
-            background: rgba(255, 255, 255, 0.95);
-            padding: 30px;
-            border-radius: 15px;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
-            transition: transform 0.3s ease;
-        }
-        .stat-card:hover {
-            transform: translateY(-5px);
-        }
-        .stat-card h3 {
-            color: #667eea;
-            margin-bottom: 15px;
-            font-size: 1.2em;
-        }
-        .big-number {
-            font-size: 3em;
-            font-weight: bold;
-            background: linear-gradient(135deg, #667eea, #764ba2);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            margin: 15px 0;
-        }
-        .actions-card {
-            background: rgba(255, 255, 255, 0.95);
-            padding: 30px;
-            border-radius: 15px;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
-            margin-bottom: 20px;
-        }
-        .action-btn {
-            background: linear-gradient(135deg, #667eea, #764ba2);
-            color: white;
-            padding: 12px 24px;
-            border: none;
-            border-radius: 8px;
-            text-decoration: none;
-            display: inline-block;
-            margin: 8px 8px 8px 0;
-            transition: all 0.3s ease;
-        }
-        .action-btn:hover { 
-            transform: translateY(-2px);
-            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
-        }
-        .alert-badge {
-            background: #ff6b6b;
-            color: white;
-            border-radius: 50%;
-            padding: 4px 8px;
-            font-size: 0.8em;
-            margin-left: 8px;
-        }
-    </style>
-</head>
+<head><meta charset="UTF-8"><title>Дашборд бота</title></head>
 <body>
-    <div class="container">
-        <div class="header">
-            <h1>📊 Дашборд бота "Забота о себе"</h1>
-            <p>Аналитика и управление курсом самосострадания</p>
-        </div>
-
-        <div class="stats-grid">
-            <div class="stat-card">
-                <h3>👥 Пользователи</h3>
-                <div class="big-number">${stats.totalUsers}</div>
-                <p>Всего зарегистрировано</p>
-            </div>
-            
-            <div class="stat-card">
-                <h3>📈 Активность сегодня</h3>
-                <div class="big-number">${stats.activeToday}</div>
-                <p>Активных пользователей</p>
-            </div>
-            
-            <div class="stat-card">
-                <h3>🎯 Завершили курс</h3>
-                <div class="big-number">${stats.completedCourse}</div>
-                <p>Прошли все 7 дней</p>
-            </div>
-
-            <div class="stat-card">
-                <h3>🚨 Алерты ${unhandledAlerts > 0 ? `<span class="alert-badge">${unhandledAlerts}</span>` : ''}</h3>
-                <div class="big-number">${alerts.length}</div>
-                <p>Всего сигналов безопасности</p>
-            </div>
-        </div>
-
-        <div class="actions-card">
-            <h3>📤 Управление данными</h3>
-            <p>Экспорт и анализ данных пользователей:</p>
-            <div style="margin-top: 15px;">
-                <a href="/dashboard/export/responses" class="action-btn">📄 Ответы пользователей (CSV)</a>
-                <a href="/dashboard/export/users" class="action-btn">👥 Список пользователей (CSV)</a>
-            </div>
-        </div>
-
-        <div style="text-align: center; color: rgba(255, 255, 255, 0.8); margin-top: 30px;">
-            <p>🕐 Последнее обновление: ${new Date().toLocaleString('ru-RU')}</p>
-        </div>
-    </div>
-</body>
-</html>`;
+<h1>📊 Дашборд бота "Забота о себе"</h1>
+<p>Пользователей: ${stats.totalUsers} | Активных сегодня: ${stats.activeToday} | Завершили курс: ${stats.completedCourse} | Алертов: ${alerts.length}${unhandledAlerts > 0 ? ` (${unhandledAlerts} новых)` : ''}</p>
+<p><a href="/dashboard/export/responses">📄 Экспорт ответов</a> | <a href="/dashboard/export/users">👥 Экспорт пользователей</a></p>
+</body></html>`;
         res.send(html);
       } catch (error) {
         res.status(500).send(`Ошибка: ${error}`);
       }
     });
 
-    // ЭКСПОРТ CSV
-    this.app.get('/dashboard/export/responses', authenticate, async (req, res) => {
-      try {
-        const responses = await this.database.getAllResponses();
-        const csv = this.createCSV(responses, ['Имя', 'Telegram ID', 'День', 'Тип вопроса', 'Ответ', 'Дата']);
-        
-        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-        res.setHeader('Content-Disposition', 'attachment; filename=user-responses.csv');
-        res.send('\ufeff' + csv);
-      } catch (error) {
-        console.error('Ошибка экспорта ответов:', error);
-        res.status(500).send('Ошибка экспорта: ' + error);
-      }
-    });
-
-    this.app.get('/dashboard/export/users', authenticate, async (req, res) => {
-      try {
-        const users = await this.database.getAllUsers();
-        const csv = this.createCSV(users, ['Имя', 'Telegram ID', 'Текущий день', 'Курс завершен', 'Дата регистрации']);
-        
-        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-        res.setHeader('Content-Disposition', 'attachment; filename=users.csv');
-        res.send('\ufeff' + csv);
-      } catch (error) {
-        console.error('Ошибка экспорта пользователей:', error);
-        res.status(500).send('Ошибка экспорта: ' + error);
-      }
-    });
-
     this.app.get('/', (req, res) => res.redirect('/dashboard'));
+  // Экспорт ответов пользователей
+this.app.get('/dashboard/export/responses', authenticate, async (req, res) => {
+  try {
+    const responses = await this.database.getAllResponses();
+    const csv = this.createCSV(responses, ['Имя', 'Telegram ID', 'День', 'Тип вопроса', 'Ответ', 'Дата']);
+    
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename=user-responses.csv');
+    res.send('\ufeff' + csv); // UTF-8 BOM для Excel
+  } catch (error) {
+    console.error('Ошибка экспорта ответов:', error);
+    res.status(500).send('Ошибка экспорта: ' + error);
   }
+});
+
+// Экспорт пользователей
+this.app.get('/dashboard/export/users', authenticate, async (req, res) => {
+  try {
+    const users = await this.database.getAllUsers();
+    const csv = this.createCSV(users, ['Имя', 'Telegram ID', 'Текущий день', 'Курс завершен', 'Дата регистрации']);
+    
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename=users.csv');
+    res.send('\ufeff' + csv);
+  } catch (error) {
+    console.error('Ошибка экспорта пользователей:', error);
+    res.status(500).send('Ошибка экспорта: ' + error);
+  }
+});
+  }
+  
 
   // === ОБРАБОТЧИКИ КОМАНД ===
   private async handleStart(msg: TelegramBot.Message): Promise<void> {
@@ -576,8 +438,10 @@ class SelfCareBot {
       await this.database.createUser(telegramId, name);
       const user = await this.database.getUser(telegramId);
       
+      // Определяем какую клавиатуру показать
       const keyboard = this.getMainKeyboard(user);
       
+      // Проверяем статус пользователя
       if (user?.course_completed) {
         await this.bot.sendMessage(chatId, 
           `🎉 Привет${name ? `, ${name}` : ''}! 
@@ -597,6 +461,7 @@ class SelfCareBot {
           reply_markup: keyboard
         });
       } else {
+        // Отправляем приветствие и потом клавиатуру
         await this.bot.sendMessage(chatId, 
           `🌸 Привет${name ? `, ${name}` : ''}! Я бот-помощник по заботе о себе.
 
@@ -612,6 +477,7 @@ class SelfCareBot {
           }
         });
         
+        // Отправляем основную клавиатуру
         setTimeout(async () => {
           await this.bot.sendMessage(chatId, 'Для быстрого доступа используй кнопки ниже:', {
             reply_markup: this.getMainKeyboard(user)
@@ -629,6 +495,7 @@ class SelfCareBot {
     }
   }
 
+  // Генерация основной клавиатуры в зависимости от статуса пользователя
   private getMainKeyboard(user: DbUser | null): any {
     if (!user) {
       return {
@@ -651,6 +518,7 @@ class SelfCareBot {
       };
     }
 
+    // Проверяем is_paused с учетом того, что поле может отсутствовать
     const isPaused = Boolean(user.is_paused);
     
     if (isPaused) {
@@ -719,6 +587,7 @@ class SelfCareBot {
         });
       }
 
+      // Обработка ответов на дни курса
       if (data.startsWith('day_')) {
         await this.handleDayCallback(chatId, telegramId, data);
       }
@@ -735,8 +604,10 @@ class SelfCareBot {
 
       const currentDay = user.current_day || 1;
 
+      // Сохраняем ответ пользователя
       await this.database.saveResponse(user.id, currentDay, 'button_choice', data);
 
+      // Отправляем подтверждение
       const responses = [
         'Спасибо за ответ! 💙',
         'Важно, что ты откликаешься 🌸', 
@@ -749,6 +620,7 @@ class SelfCareBot {
         reply_markup: this.getMainKeyboard(user)
       });
 
+      // Если это вечернее сообщение - переводим на следующий день
       if (data.includes('_evening_')) {
         const nextDay = currentDay + 1;
         if (nextDay <= 7) {
@@ -781,6 +653,7 @@ class SelfCareBot {
     if (!telegramId || !text) return;
 
     try {
+      // Проверка на алерты
       const alertFound = await checkForAlerts(text);
       if (alertFound) {
         const user = await this.database.getUser(telegramId);
@@ -797,6 +670,7 @@ class SelfCareBot {
         }
       }
 
+      // Сохранение обычного ответа
       const user = await this.database.getUser(telegramId);
       if (user) {
         await this.database.saveResponse(user.id, user.current_day, 'free_text', text);
@@ -855,7 +729,7 @@ class SelfCareBot {
         progressText += `Нажми "Продолжить" когда будешь готова! 💙`;
       } else {
         const currentDay = user.current_day || 1;
-        const isPaused = Boolean(user.is_paused);
+        const isPaused = Boolean(user.is_paused)
         
         progressText += `📅 День: ${currentDay} из 7\n`;
         progressText += `🌱 Статус: ${isPaused ? 'На паузе' : 'Активен'}\n\n`;
