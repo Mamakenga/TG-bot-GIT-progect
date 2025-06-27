@@ -15,17 +15,13 @@ class SelfCareBot {
   private database: Database;
 
   constructor() {
-    // Webhook для продакшена, polling для разработки
-    const options = process.env.NODE_ENV === 'production' 
-      ? { webHook: { port: Number(process.env.PORT) || 3000 } }
-      : { polling: true };
-    
-    this.bot = new TelegramBot(config.telegram.token, options);
+    // В продакшене НЕ используем webhook в конструкторе бота
+    // Создаем бота БЕЗ webhook, настроим позже
+    this.bot = new TelegramBot(config.telegram.token, { polling: false });
     this.app = express();
     this.database = new Database();
     
     this.setupMiddleware();
-    this.setupWebhook();
     this.setupHandlers();
     this.setupAdminRoutes();
     this.setupReminders();
@@ -37,29 +33,43 @@ class SelfCareBot {
     this.app.use(express.static('public'));
   }
 
-  private setupWebhook(): void {
-    if (process.env.NODE_ENV === 'production') {
-      const url = process.env.RAILWAY_PUBLIC_DOMAIN || process.env.VERCEL_URL || 'https://tg-bot-git-progect.up.railway.app';
-      this.bot.setWebHook(`${url}/bot${config.telegram.token}`);
-      console.log(`🔗 Webhook установлен: ${url}`);
-    }
-  }
-
   async init(): Promise<void> {
     await this.database.init();
     
-    // Запуск ОДНОГО веб-сервера для всего
+    // Запускаем ОДИН сервер для всего
     const PORT = Number(process.env.PORT) || 3000;
+    
     this.app.listen(PORT, () => {
       console.log(`🚀 Сервер запущен на порту ${PORT}`);
       console.log(`🤖 Telegram бот активен`);
       console.log(`📊 Дашборд: https://tg-bot-git-progect.up.railway.app/dashboard`);
+      
+      // ПОСЛЕ запуска сервера устанавливаем webhook
+      if (process.env.NODE_ENV === 'production') {
+        this.setupWebhook();
+      } else {
+        // В разработке используем polling
+        this.bot.startPolling();
+        console.log('🔄 Polling режим активен');
+      }
+    });
+  }
+
+  private setupWebhook(): void {
+    const url = 'https://tg-bot-git-progect.up.railway.app';
+    const webhookUrl = `${url}/bot${config.telegram.token}`;
+    
+    this.bot.setWebHook(webhookUrl).then(() => {
+      console.log(`🔗 Webhook установлен: ${webhookUrl}`);
+    }).catch((error) => {
+      console.error('Ошибка установки webhook:', error);
     });
   }
 
   private setupHandlers(): void {
     // Webhook endpoint для Telegram
     this.app.post(`/bot${config.telegram.token}`, (req, res) => {
+      console.log('📨 Получено обновление от Telegram');
       this.bot.processUpdate(req.body);
       res.sendStatus(200);
     });
@@ -76,6 +86,11 @@ class SelfCareBot {
 
     // Текстовые сообщения
     this.bot.on('message', this.handleText.bind(this));
+
+    // Обработка ошибок
+    this.bot.on('error', (error) => {
+      console.error('Ошибка Telegram бота:', error);
+    });
   }
 
   // === ADMIN ROUTES ===
@@ -259,6 +274,16 @@ class SelfCareBot {
         console.error('Ошибка дашборда:', error);
         res.status(500).send(`Ошибка: ${error}`);
       }
+    });
+
+    // Тестовый endpoint
+    this.app.get('/test', (req, res) => {
+      res.json({ 
+        status: 'OK', 
+        time: new Date().toISOString(),
+        env: process.env.NODE_ENV,
+        port: process.env.PORT 
+      });
     });
 
     // Экспорт данных
