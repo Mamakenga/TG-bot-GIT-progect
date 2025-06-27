@@ -236,13 +236,15 @@ this.bot.onText(/\/testday (\d+)/, this.handleTestDay.bind(this));
           }
 
           await this.bot.sendMessage(user.telegram_id, dayContent.morningMessage, {
-            reply_markup: dayContent.options ? {
-              inline_keyboard: dayContent.options.map((option, index) => [{
-  text: option.text,
-  callback_data: `day_${currentDay}_morning_${index}`
-}])
-            } : undefined
-          });
+  reply_markup: (dayContent.options && currentDay !== 3) ? {
+    inline_keyboard: [
+      dayContent.options.map((option, index) => ({
+        text: option.text,
+        callback_data: `day_${currentDay}_morning_${index}`
+      }))
+    ]
+  } : undefined
+});
 
           console.log(`✅ Утреннее сообщение отправлено пользователю ${user.telegram_id} (день ${currentDay})`);
           await new Promise(resolve => setTimeout(resolve, 100));
@@ -337,13 +339,13 @@ this.bot.onText(/\/testday (\d+)/, this.handleTestDay.bind(this));
           if (!dayContent) continue;
 
           await this.bot.sendMessage(user.telegram_id, dayContent.eveningMessage, {
-            reply_markup: dayContent.options ? {
-              inline_keyboard: dayContent.options.map((option, index) => [{
-  text: option.text,
-  callback_data: `day_${currentDay}_morning_${index}`
-}])
-            } : undefined
-          });
+  reply_markup: dayContent.options ? {
+    inline_keyboard: dayContent.options.map((option, index) => [{
+      text: option.text,
+      callback_data: `day_${currentDay}_evening_${index}`
+    }])
+  } : undefined
+});
 
           console.log(`✅ Вечернее сообщение отправлено пользователю ${user.telegram_id} (день ${currentDay})`);
           await new Promise(resolve => setTimeout(resolve, 100));
