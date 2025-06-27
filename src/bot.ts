@@ -15,9 +15,18 @@ class SelfCareBot {
   private database: Database;
 
   constructor() {
-    // В продакшене НЕ используем webhook в конструкторе бота
-    // Создаем бота БЕЗ webhook, настроим позже
-    this.bot = new TelegramBot(config.telegram.token, { polling: false });
+    // Создаем бота с настройками для предотвращения дублирования
+    this.bot = new TelegramBot(config.telegram.token, { 
+      polling: false,
+      request: {
+        agentOptions: {
+          keepAlive: true,
+          family: 4
+        },
+        timeout: 30000 // 30 секунд таймаут
+      }
+    });
+    
     this.app = express();
     this.database = new Database();
     
@@ -29,8 +38,14 @@ class SelfCareBot {
 
   private setupMiddleware(): void {
     this.app.use(cors());
-    this.app.use(express.json());
+    this.app.use(express.json({ limit: '10mb' }));
     this.app.use(express.static('public'));
+    
+    // Таймаут для всех запросов
+    this.app.use((req, res, next) => {
+      req.setTimeout(25000); // 25 секунд на обработку запроса
+      next();
+    });
   }
 
   async init(): Promise<void> {
@@ -42,7 +57,7 @@ class SelfCareBot {
     this.app.listen(PORT, () => {
       console.log(`🚀 Сервер запущен на порту ${PORT}`);
       console.log(`🤖 Telegram бот активен`);
-      console.log(`📊 Дашборд: https://tg-bot-git-progect.up.railway.app/dashboard`);
+      console.log(`📊 Дашборд: https://tg-bot-git-progect-production.up.railway.app/dashboard`);
       
       // ПОСЛЕ запуска сервера устанавливаем webhook
       if (process.env.NODE_ENV === 'production') {
@@ -56,22 +71,35 @@ class SelfCareBot {
   }
 
   private setupWebhook(): void {
-    const url = 'https://tg-bot-git-progect-production.up.railway.app';
+    const url = process.env.DASHBOARD_URL || 'https://tg-bot-git-progect-production.up.railway.app';
     const webhookUrl = `${url}/bot${config.telegram.token}`;
     
     this.bot.setWebHook(webhookUrl).then(() => {
       console.log(`🔗 Webhook установлен: ${webhookUrl}`);
     }).catch((error) => {
-      console.error('Ошибка установки webhook:', error);
+      console.error('❌ Ошибка установки webhook:', error);
     });
   }
 
   private setupHandlers(): void {
-    // Webhook endpoint для Telegram
-    this.app.post(`/bot${config.telegram.token}`, (req, res) => {
-      console.log('📨 Получено обновление от Telegram');
-      this.bot.processUpdate(req.body);
-      res.sendStatus(200);
+    // ИСПРАВЛЕННЫЙ webhook endpoint - ключ к решению проблемы дублирования!
+    this.app.post(`/bot${config.telegram.token}`, async (req, res) => {
+      try {
+        console.log('📨 Получено обновление от Telegram');
+        
+        // Обрабатываем обновление ПЕРЕД отправкой ответа Telegram
+        await this.bot.processUpdate(req.body);
+        
+        // Отправляем успешный ответ ТОЛЬКО после полной обработки
+        res.status(200).json({ ok: true });
+        console.log('✅ Обновление обработано успешно');
+        
+      } catch (error) {
+        console.error('❌ Ошибка обработки webhook:', error);
+        
+        // Даже при ошибке отправляем 200, чтобы Telegram не переотправлял
+        res.status(200).json({ ok: false, error: 'Internal error' });
+      }
     });
 
     // Команды
@@ -87,9 +115,18 @@ class SelfCareBot {
     // Текстовые сообщения
     this.bot.on('message', this.handleText.bind(this));
 
-    // Обработка ошибок
+    // Обработка ошибок бота
     this.bot.on('error', (error) => {
-      console.error('Ошибка Telegram бота:', error);
+      console.error('❌ Ошибка Telegram бота:', error);
+    });
+
+    // Глобальная обработка необработанных ошибок
+    process.on('unhandledRejection', (reason, promise) => {
+      console.error('❌ Unhandled Rejection at:', promise, 'reason:', reason);
+    });
+
+    process.on('uncaughtException', (error) => {
+      console.error('❌ Uncaught Exception:', error);
     });
   }
 
@@ -271,19 +308,9 @@ class SelfCareBot {
 
         res.send(html);
       } catch (error) {
-        console.error('Ошибка дашборда:', error);
+        console.error('❌ Ошибка дашборда:', error);
         res.status(500).send(`Ошибка: ${error}`);
       }
-    });
-
-    // Тестовый endpoint
-    this.app.get('/test', (req, res) => {
-      res.json({ 
-        status: 'OK', 
-        time: new Date().toISOString(),
-        env: process.env.NODE_ENV,
-        port: process.env.PORT 
-      });
     });
 
     // Экспорт данных
@@ -319,6 +346,7 @@ class SelfCareBot {
     });
   }
 
+  // УЛУЧШЕННЫЕ ОБРАБОТЧИКИ С ЗАЩИТОЙ ОТ ОШИБОК
   private async handleStart(msg: TelegramBot.Message): Promise<void> {
     const chatId = msg.chat.id;
     const telegramId = msg.from?.id;
@@ -327,6 +355,8 @@ class SelfCareBot {
     if (!telegramId) return;
 
     try {
+      console.log(`👤 Пользователь ${telegramId} (${name}) запустил /start`);
+      
       await this.database.createUser(telegramId, name);
       
       await this.bot.sendMessage(chatId, 
@@ -344,9 +374,17 @@ class SelfCareBot {
           ]]
         }
       });
+      
+      console.log(`✅ Приветствие отправлено пользователю ${telegramId}`);
+      
     } catch (error) {
-      console.error('Ошибка в handleStart:', error);
-      await this.bot.sendMessage(chatId, 'Произошла ошибка. Попробуйте позже.');
+      console.error(`❌ Ошибка в handleStart для пользователя ${telegramId}:`, error);
+      
+      try {
+        await this.bot.sendMessage(chatId, 'Произошла ошибка. Попробуйте позже или напишите /start еще раз.');
+      } catch (sendError) {
+        console.error('❌ Не удалось отправить сообщение об ошибке:', sendError);
+      }
     }
   }
 
@@ -358,13 +396,17 @@ class SelfCareBot {
     if (!chatId || !data) return;
 
     try {
+      console.log(`🔘 Callback от пользователя ${telegramId}: ${data}`);
+      
+      // Сначала отвечаем на callback чтобы убрать "загрузку" на кнопке
+      await this.bot.answerCallbackQuery(callbackQuery.id);
+
       const user = await this.database.getUser(telegramId);
       if (!user) {
+        console.log(`⚠️ Пользователь ${telegramId} не найден, создаем...`);
         await this.handleStart(callbackQuery.message!);
         return;
       }
-
-      await this.bot.answerCallbackQuery(callbackQuery.id);
 
       switch (data) {
         case 'start_yes':
@@ -382,10 +424,25 @@ class SelfCareBot {
         default:
           if (data.startsWith('day_')) {
             await this.handleDayResponse(chatId, telegramId, data);
+          } else {
+            console.log(`⚠️ Неизвестный callback: ${data}`);
           }
       }
+      
+      console.log(`✅ Callback ${data} обработан для пользователя ${telegramId}`);
+      
     } catch (error) {
-      console.error('Ошибка в handleCallback:', error);
+      console.error(`❌ Ошибка в handleCallback для пользователя ${telegramId}, data: ${data}:`, error);
+      
+      try {
+        // Всё равно отвечаем на callback чтобы убрать загрузку
+        await this.bot.answerCallbackQuery(callbackQuery.id, {
+          text: "Произошла ошибка. Попробуйте еще раз.",
+          show_alert: false
+        });
+      } catch (callbackError) {
+        console.error('❌ Не удалось ответить на callback:', callbackError);
+      }
     }
   }
 
@@ -479,8 +536,13 @@ class SelfCareBot {
     if (!telegramId || !text) return;
 
     try {
+      console.log(`💬 Сообщение от пользователя ${telegramId}: "${text.substring(0, 50)}..."`);
+      
+      // Проверка на алерты
       const alertFound = await checkForAlerts(text);
       if (alertFound) {
+        console.log(`🚨 АЛЕРТ! Пользователь ${telegramId}, триггер: ${alertFound}`);
+        
         const user = await this.database.getUser(telegramId);
         if (user) {
           await this.database.createAlert(user.id, alertFound, text);
@@ -496,6 +558,7 @@ class SelfCareBot {
         }
       }
 
+      // Сохранение обычного ответа
       const user = await this.database.getUser(telegramId);
       if (user) {
         await this.database.saveResponse(user.id, user.current_day, 'free_text', text);
@@ -509,9 +572,17 @@ class SelfCareBot {
         const randomResponse = responses[Math.floor(Math.random() * responses.length)];
         
         await this.bot.sendMessage(chatId, randomResponse);
+        console.log(`✅ Ответ отправлен пользователю ${telegramId}`);
       }
+      
     } catch (error) {
-      console.error('Ошибка в handleText:', error);
+      console.error(`❌ Ошибка в handleText для пользователя ${telegramId}:`, error);
+      
+      try {
+        await this.bot.sendMessage(chatId, 'Спасибо за сообщение 💙');
+      } catch (sendError) {
+        console.error('❌ Не удалось отправить запасной ответ:', sendError);
+      }
     }
   }
 
@@ -547,21 +618,21 @@ class SelfCareBot {
       statsText += `👥 Всего пользователей: ${stats.totalUsers}\n`;
       statsText += `📈 Активных сегодня: ${stats.activeToday}\n`;
       statsText += `🎯 Завершили курс: ${stats.completedCourse}\n\n`;
-      statsText += `📊 Дашборд: https://tg-bot-git-progect.up.railway.app/dashboard\n`;
+      statsText += `📊 Дашборд: https://tg-bot-git-progect-production.up.railway.app/dashboard\n`;
 
       await this.bot.sendMessage(msg.chat.id, statsText);
     } catch (error) {
-      console.error('Ошибка получения статистики:', error);
+      console.error('❌ Ошибка получения статистики:', error);
     }
   }
 
   private setupReminders(): void {
     cron.schedule('0 9 * * *', async () => {
-      console.log('Отправка утренних напоминаний...');
+      console.log('⏰ Отправка утренних напоминаний...');
     });
 
     cron.schedule('0 20 * * *', async () => {
-      console.log('Отправка вечерних напоминаний...');
+      console.log('⏰ Отправка вечерних напоминаний...');
     });
   }
 }
