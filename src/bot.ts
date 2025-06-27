@@ -169,13 +169,14 @@ class SelfCareBot {
       for (const user of activeUsers) {
         try {
           // Проверяем, не завершен ли курс
-          if (user.course_completed || user.current_day > 7) {
+          if (user.course_completed || (user.current_day || 1) > 7) {
             continue;
           }
 
-          const dayContent = getDayContent(user.current_day);
+          const currentDay = user.current_day || 1;
+          const dayContent = getDayContent(currentDay);
           if (!dayContent) {
-            console.log(`⚠️ Контент для дня ${user.current_day} не найден`);
+            console.log(`⚠️ Контент для дня ${currentDay} не найден`);
             continue;
           }
 
@@ -185,13 +186,13 @@ class SelfCareBot {
               inline_keyboard: [
                 dayContent.options.map((option, index) => ({
                   text: option.text,
-                  callback_data: `day_${user.current_day}_morning_${index}`
+                  callback_data: `day_${currentDay}_morning_${index}`
                 }))
               ]
             } : undefined
           });
 
-          console.log(`✅ Утреннее сообщение отправлено пользователю ${user.telegram_id} (день ${user.current_day})`);
+          console.log(`✅ Утреннее сообщение отправлено пользователю ${user.telegram_id} (день ${currentDay})`);
           
           // Небольшая задержка между отправками
           await new Promise(resolve => setTimeout(resolve, 100));
@@ -212,22 +213,23 @@ class SelfCareBot {
 
       for (const user of activeUsers) {
         try {
-          if (user.course_completed || user.current_day > 7) continue;
+          if (user.course_completed || (user.current_day || 1) > 7) continue;
 
-          const dayContent = getDayContent(user.current_day);
+          const currentDay = user.current_day || 1;
+          const dayContent = getDayContent(currentDay);
           if (!dayContent) continue;
 
           await this.bot.sendMessage(user.telegram_id, dayContent.exerciseMessage, {
             reply_markup: {
               inline_keyboard: [[
-                { text: '✅ Готова попробовать', callback_data: `day_${user.current_day}_exercise_ready` },
-                { text: '❓ Нужна помощь', callback_data: `day_${user.current_day}_exercise_help` },
-                { text: '⏰ Сделаю позже', callback_data: `day_${user.current_day}_exercise_later` }
+                { text: '✅ Готова попробовать', callback_data: `day_${currentDay}_exercise_ready` },
+                { text: '❓ Нужна помощь', callback_data: `day_${currentDay}_exercise_help` },
+                { text: '⏰ Сделаю позже', callback_data: `day_${currentDay}_exercise_later` }
               ]]
             }
           });
 
-          console.log(`✅ Упражнение отправлено пользователю ${user.telegram_id} (день ${user.current_day})`);
+          console.log(`✅ Упражнение отправлено пользователю ${user.telegram_id} (день ${currentDay})`);
           await new Promise(resolve => setTimeout(resolve, 100));
 
         } catch (userError) {
@@ -246,22 +248,23 @@ class SelfCareBot {
 
       for (const user of activeUsers) {
         try {
-          if (user.course_completed || user.current_day > 7) continue;
+          if (user.course_completed || (user.current_day || 1) > 7) continue;
 
-          const dayContent = getDayContent(user.current_day);
+          const currentDay = user.current_day || 1;
+          const dayContent = getDayContent(currentDay);
           if (!dayContent) continue;
 
           await this.bot.sendMessage(user.telegram_id, dayContent.phraseOfDay, {
             reply_markup: {
               inline_keyboard: [[
-                { text: '💙 Откликается', callback_data: `day_${user.current_day}_phrase_good` },
-                { text: '🤔 Звучит странно', callback_data: `day_${user.current_day}_phrase_strange` },
-                { text: '😔 Сложно поверить', callback_data: `day_${user.current_day}_phrase_hard` }
+                { text: '💙 Откликается', callback_data: `day_${currentDay}_phrase_good` },
+                { text: '🤔 Звучит странно', callback_data: `day_${currentDay}_phrase_strange` },
+                { text: '😔 Сложно поверить', callback_data: `day_${currentDay}_phrase_hard` }
               ]]
             }
           });
 
-          console.log(`✅ Фраза дня отправлена пользователю ${user.telegram_id} (день ${user.current_day})`);
+          console.log(`✅ Фраза дня отправлена пользователю ${user.telegram_id} (день ${currentDay})`);
           await new Promise(resolve => setTimeout(resolve, 100));
 
         } catch (userError) {
@@ -280,9 +283,10 @@ class SelfCareBot {
 
       for (const user of activeUsers) {
         try {
-          if (user.course_completed || user.current_day > 7) continue;
+          if (user.course_completed || (user.current_day || 1) > 7) continue;
 
-          const dayContent = getDayContent(user.current_day);
+          const currentDay = user.current_day || 1;
+          const dayContent = getDayContent(currentDay);
           if (!dayContent) continue;
 
           await this.bot.sendMessage(user.telegram_id, dayContent.eveningMessage, {
@@ -290,13 +294,13 @@ class SelfCareBot {
               inline_keyboard: [
                 dayContent.options.map((option, index) => ({
                   text: option.text,
-                  callback_data: `day_${user.current_day}_evening_${index}`
+                  callback_data: `day_${currentDay}_evening_${index}`
                 }))
               ]
             } : undefined
           });
 
-          console.log(`✅ Вечернее сообщение отправлено пользователю ${user.telegram_id} (день ${user.current_day})`);
+          console.log(`✅ Вечернее сообщение отправлено пользователю ${user.telegram_id} (день ${currentDay})`);
           await new Promise(resolve => setTimeout(resolve, 100));
 
         } catch (userError) {
@@ -375,7 +379,7 @@ class SelfCareBot {
 Можешь пройти курс заново или использовать полученные навыки в повседневной жизни.`, {
           reply_markup: keyboard
         });
-      } else if (user?.current_day > 1) {
+      } else if (user && user.current_day > 1) {
         await this.bot.sendMessage(chatId, 
           `🌸 С возвращением${name ? `, ${name}` : ''}!
 
@@ -522,8 +526,10 @@ class SelfCareBot {
       const user = await this.database.getUser(telegramId);
       if (!user) return;
 
+      const currentDay = user.current_day || 1;
+
       // Сохраняем ответ пользователя
-      await this.database.saveResponse(user.id, user.current_day, 'button_choice', data);
+      await this.database.saveResponse(user.id, currentDay, 'button_choice', data);
 
       // Отправляем подтверждение
       const responses = [
@@ -540,10 +546,10 @@ class SelfCareBot {
 
       // Если это вечернее сообщение - переводим на следующий день
       if (data.includes('_evening_')) {
-        const nextDay = user.current_day + 1;
+        const nextDay = currentDay + 1;
         if (nextDay <= 7) {
           await this.database.updateUserDay(telegramId, nextDay);
-          await this.database.markDayCompleted(user.id, user.current_day);
+          await this.database.markDayCompleted(user.id, currentDay);
         } else {
           await this.database.markCourseCompleted(telegramId);
           const completedUser = await this.database.getUser(telegramId);
@@ -643,16 +649,17 @@ class SelfCareBot {
         progressText += `• Замечай свои эмоции\n• Говори себе добрые слова\n• Заботься о своих потребностях\n• Принимай свою уязвимость`;
       } else if (user.is_paused) {
         progressText += `⏸️ Курс на паузе\n`;
-        progressText += `📅 Текущий день: ${user.current_day} из 7\n\n`;
+        progressText += `📅 Текущий день: ${user.current_day || 1} из 7\n\n`;
         progressText += `Нажми "Продолжить" когда будешь готова! 💙`;
       } else {
-        progressText += `📅 День: ${user.current_day} из 7\n`;
+        const currentDay = user.current_day || 1;
+        progressText += `📅 День: ${currentDay} из 7\n`;
         progressText += `🌱 Статус: Активен\n\n`;
         
-        if (user.current_day === 1) {
+        if (currentDay === 1) {
           progressText += `Сегодня: Осознание боли\nЗавтра в 9:00 придет первое сообщение дня.`;
         } else {
-          const dayContent = getDayContent(user.current_day);
+          const dayContent = getDayContent(currentDay);
           if (dayContent) {
             progressText += `Сегодня: ${dayContent.title}\n`;
             progressText += `Следующее сообщение ждет тебя по расписанию! 🕐`;
@@ -660,7 +667,8 @@ class SelfCareBot {
         }
       }
 
-      const completionPercentage = user.course_completed ? 100 : Math.round(((user.current_day - 1) / 7) * 100);
+      const currentDay = user.current_day || 1;
+      const completionPercentage = user.course_completed ? 100 : Math.round(((currentDay - 1) / 7) * 100);
       progressText += `\n\n📈 Прогресс: ${completionPercentage}%`;
       progressText += `\n${'▓'.repeat(Math.floor(completionPercentage / 10))}${'░'.repeat(10 - Math.floor(completionPercentage / 10))}`;
 
