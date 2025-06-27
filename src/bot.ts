@@ -1,4 +1,4 @@
-console.log('Бот запущен...');
+console.log('🚀 Запуск бота...');
 
 import TelegramBot from 'node-telegram-bot-api';
 import express from 'express';
@@ -42,22 +42,48 @@ class SelfCareBot {
   }
 
   async init(): Promise<void> {
-    await this.database.init();
-    
-    const PORT = Number(process.env.PORT) || 3000;
-    
-    this.app.listen(PORT, () => {
-      console.log(`🚀 Сервер запущен на порту ${PORT}`);
-      console.log(`🤖 Telegram бот активен`);
-      console.log(`📊 Дашборд: ${process.env.DASHBOARD_URL || 'http://localhost:3000'}/dashboard`);
+    try {
+      console.log('🔧 Инициализация базы данных...');
+      await this.database.init();
       
-      if (process.env.NODE_ENV === 'production') {
-        this.setupWebhook();
-      } else {
-        this.bot.startPolling();
-        console.log('🔄 Polling режим активен');
-      }
-    });
+      const PORT = Number(process.env.PORT) || 3000;
+      
+      console.log('🌐 Запуск веб-сервера...');
+      this.app.listen(PORT, () => {
+        console.log(`🚀 Сервер запущен на порту ${PORT}`);
+        console.log(`🤖 Telegram бот активен`);
+        console.log(`📊 Дашборд: ${process.env.DASHBOARD_URL || 'http://localhost:3000'}/dashboard`);
+        
+        if (process.env.NODE_ENV === 'production') {
+          console.log('🔧 Настройка webhook...');
+          this.setupWebhook();
+        } else {
+          console.log('🔧 Запуск polling...');
+          this.bot.startPolling();
+          console.log('🔄 Polling режим активен');
+        }
+      });
+
+      // Graceful shutdown
+      const shutdown = async (signal: string) => {
+        console.log(`📡 Получен сигнал ${signal}, корректное завершение...`);
+        try {
+          await this.database.close();
+          console.log('✅ База данных закрыта');
+          process.exit(0);
+        } catch (error) {
+          console.error('❌ Ошибка при завершении:', error);
+          process.exit(1);
+        }
+      };
+
+      process.on('SIGTERM', () => shutdown('SIGTERM'));
+      process.on('SIGINT', () => shutdown('SIGINT'));
+
+    } catch (error) {
+      console.error('❌ Критическая ошибка при инициализации:', error);
+      process.exit(1);
+    }
   }
 
   private setupWebhook(): void {
@@ -107,15 +133,32 @@ class SelfCareBot {
 
     // Обработка ошибок
     this.bot.on('error', (error) => {
-      console.error('❌ Ошибка Telegram бота:', error);
+      console.error('❌ Ошибка Telegram бота:', error.message);
+      // Не падаем, просто логируем
     });
 
+    this.bot.on('polling_error', (error) => {
+      console.error('❌ Ошибка polling:', error.message);
+      // Не падаем, просто логируем
+    });
+
+    this.bot.on('webhook_error', (error) => {
+      console.error('❌ Ошибка webhook:', error.message);
+      // Не падаем, просто логируем
+    });
+
+    // Глобальная обработка ошибок
     process.on('unhandledRejection', (reason, promise) => {
-      console.error('❌ Unhandled Rejection at:', promise, 'reason:', reason);
+      console.error('❌ Unhandled Rejection:', reason);
+      // Не падаем, просто логируем
     });
 
     process.on('uncaughtException', (error) => {
-      console.error('❌ Uncaught Exception:', error);
+      console.error('❌ Uncaught Exception:', error.message);
+      // При критической ошибке корректно завершаемся
+      setTimeout(() => {
+        process.exit(1);
+      }, 1000);
     });
   }
 

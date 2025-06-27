@@ -1,10 +1,20 @@
 import dotenv from 'dotenv';
 
+// Инициализация dotenv в самом начале
 dotenv.config();
+
+// Проверяем обязательные переменные
+const requiredVars = ['TELEGRAM_BOT_TOKEN'];
+for (const varName of requiredVars) {
+  if (!process.env[varName]) {
+    console.error(`❌ Обязательная переменная ${varName} не установлена`);
+    process.exit(1);
+  }
+}
 
 export const config = {
   telegram: {
-    token: process.env.TELEGRAM_BOT_TOKEN || '',
+    token: process.env.TELEGRAM_BOT_TOKEN!,
     adminId: process.env.ADMIN_TELEGRAM_ID || ''
   },
   database: {
@@ -14,15 +24,7 @@ export const config = {
     port: Number(process.env.PORT) || 3000
   },
   security: {
-    alertKeywords: process.env.ALERT_KEYWORDS?.split(',') || [
-      'не хочу жить',
-      'покончить с собой', 
-      'бессмысленно',
-      'суицид',
-      'умереть',
-      'покончить с жизнью',
-      'нет смысла жить'
-    ],
+    alertKeywords: (process.env.ALERT_KEYWORDS || 'не хочу жить,покончить с собой,бессмысленно,суицид,умереть,покончить с жизнью,нет смысла жить').split(','),
     psychologistEmail: process.env.PSYCHOLOGIST_EMAIL || 'help@harmony4soul.com',
     adminPassword: process.env.ADMIN_PASSWORD || 'admin123'
   },
