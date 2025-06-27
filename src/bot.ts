@@ -116,6 +116,8 @@ class SelfCareBot {
     this.bot.onText(/\/help/, this.handleHelp.bind(this));
     this.bot.onText(/\/stats/, this.handleStats.bind(this));
     this.bot.onText(/\/test/, this.handleTest.bind(this));
+this.bot.onText(/\/nextday/, this.handleNextDay.bind(this));
+this.bot.onText(/\/testday (\d+)/, this.handleTestDay.bind(this));
     this.bot.onText(/\/pause/, this.handlePause.bind(this));
     this.bot.onText(/\/resume/, this.handleResume.bind(this));
     this.bot.onText(/\/menu/, this.handleMenu.bind(this));
@@ -1049,6 +1051,78 @@ private async handleMenu(msg: TelegramBot.Message): Promise<void> {
     });
   } catch (error) {
     console.error('❌ Ошибка в handleMenu:', error);
+  }
+}
+private async handleNextDay(msg: TelegramBot.Message): Promise<void> {
+  const telegramId = msg.from?.id;
+  const chatId = msg.chat.id;
+
+  if (!telegramId) return;
+
+  try {
+    const user = await this.database.getUser(telegramId);
+    if (!user) {
+      await this.bot.sendMessage(chatId, 'Сначала запусти /start');
+      return;
+    }
+
+    const currentDay = user.current_day || 1;
+    const nextDay = currentDay + 1;
+
+    if (nextDay > 7) {
+      await this.database.markCourseCompleted(telegramId);
+      await this.bot.sendMessage(chatId, '🎉 Курс завершен! Используй /start для перезапуска');
+    } else {
+      await this.database.updateUserDay(telegramId, nextDay);
+      await this.database.markDayCompleted(user.id, currentDay);
+      await this.bot.sendMessage(chatId, `✅ Переключен на день ${nextDay}. Теперь /test покажет день ${nextDay}`);
+    }
+
+  } catch (error) {
+    console.error('❌ Ошибка в handleNextDay:', error);
+  }
+}
+
+private async handleTestDay(msg: TelegramBot.Message, match: RegExpExecArray | null): Promise<void> {
+  const telegramId = msg.from?.id;
+  const chatId = msg.chat.id;
+  const dayNumber = match ? parseInt(match[1]) : 1;
+
+  if (!telegramId) return;
+
+  try {
+    if (dayNumber < 1 || dayNumber > 7) {
+      await this.bot.sendMessage(chatId, 'Укажи день от 1 до 7. Например: /testday 3');
+      return;
+    }
+
+    const dayContent = getDayContent(dayNumber);
+    if (!dayContent) {
+      await this.bot.sendMessage(chatId, 'Контент для этого дня не найден');
+      return;
+    }
+
+    await this.bot.sendMessage(chatId, `🧪 ПРЕДВАРИТЕЛЬНЫЙ ПРОСМОТР: День ${dayNumber}\n\n=== УТРО ===`);
+    
+    await this.bot.sendMessage(chatId, dayContent.morningMessage);
+    
+    setTimeout(async () => {
+      await this.bot.sendMessage(chatId, `=== УПРАЖНЕНИЕ ===`);
+      await this.bot.sendMessage(chatId, dayContent.exerciseMessage);
+    }, 2000);
+
+    setTimeout(async () => {
+      await this.bot.sendMessage(chatId, `=== ФРАЗА ДНЯ ===`);
+      await this.bot.sendMessage(chatId, dayContent.phraseOfDay);
+    }, 4000);
+
+    setTimeout(async () => {
+      await this.bot.sendMessage(chatId, `=== ВЕЧЕР ===`);
+      await this.bot.sendMessage(chatId, dayContent.eveningMessage);
+    }, 6000);
+
+  } catch (error) {
+    console.error('❌ Ошибка в handleTestDay:', error);
   }
 }
   private async handleStats(msg: TelegramBot.Message): Promise<void> {
