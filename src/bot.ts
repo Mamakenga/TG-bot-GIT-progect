@@ -996,7 +996,7 @@ private async handleTest(msg: TelegramBot.Message): Promise<void> {
       await this.bot.sendMessage(chatId, dayContent.exerciseMessage, {
         reply_markup: {
           inline_keyboard: [[
-            { text: '✅ Готова попробовать', callback_data: `day_${currentDay}_exercise_ready` },
+            { text: '✅ Попробую', callback_data: `day_${currentDay}_exercise_ready` },
             { text: '❓ Нужна помощь', callback_data: `day_${currentDay}_exercise_help` },
             { text: '⏰ Сделаю позже', callback_data: `day_${currentDay}_exercise_later` }
           ]]
@@ -1023,12 +1023,10 @@ private async handleTest(msg: TelegramBot.Message): Promise<void> {
       await this.bot.sendMessage(chatId, `=== ВЕЧЕР ===`);
       await this.bot.sendMessage(chatId, dayContent.eveningMessage, {
         reply_markup: dayContent.options ? {
-          inline_keyboard: [
-            dayContent.options.map((option, index) => ({
-              text: option.text,
-              callback_data: `day_${currentDay}_evening_${index}`
-            }))
-          ]
+          inline_keyboard: dayContent.options.map((option, index) => [{
+  text: option.text,
+  callback_data: `day_${currentDay}_evening_${index}`
+}])
         } : undefined
       });
     }, 9000);
