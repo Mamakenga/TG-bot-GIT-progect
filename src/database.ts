@@ -311,7 +311,14 @@ export class Database {
     `;
     await this.pool.query(query, [userId, day]);
   }
-
+  async isDayCompleted(userId: number, day: number): Promise<boolean> {
+  const query = `
+    SELECT completed FROM progress 
+    WHERE user_id = $1 AND day = $2 AND completed = true
+  `;
+  const result = await this.pool.query(query, [userId, day]);
+  return result.rows.length > 0;
+}
   async markCourseCompleted(telegramId: number): Promise<void> {
     const query = 'UPDATE users SET course_completed = true, updated_at = CURRENT_TIMESTAMP WHERE telegram_id = $1';
     await this.pool.query(query, [telegramId]);

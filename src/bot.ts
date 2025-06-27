@@ -750,21 +750,26 @@ class SelfCareBot {
       });
 
       if (data.includes('_evening_')) {
-        const nextDay = currentDay + 1;
-        if (nextDay <= 7) {
-          await this.database.updateUserDay(telegramId, nextDay);
-          await this.database.markDayCompleted(user.id, currentDay);
-        } else {
-          await this.database.markCourseCompleted(telegramId);
-          const completedUser = await this.database.getUser(telegramId);
-          
-          await this.bot.sendMessage(chatId, 
-            `🎉 Поздравляю! Ты завершила 7-дневный курс заботы о себе!\n\n` +
-            `Это настоящее достижение. Используй полученные навыки каждый день! 💙`, {
-            reply_markup: this.getMainKeyboard(completedUser)
-          });
-        }
-      }
+        // Проверяем, не завершен ли уже этот день
+  const dayCompleted = await this.database.isDayCompleted(user.id, currentDay);
+  
+  if (!dayCompleted) {
+    const nextDay = currentDay + 1;
+    if (nextDay <= 7) {
+      await this.database.updateUserDay(telegramId, nextDay);
+      await this.database.markDayCompleted(user.id, currentDay);
+    } else {
+      await this.database.markCourseCompleted(telegramId);
+      const completedUser = await this.database.getUser(telegramId);
+      
+      await this.bot.sendMessage(chatId, 
+        `🎉 Поздравляю! Ты завершила 7-дневный курс заботы о себе!\n\n` +
+        `Это настоящее достижение. Используй полученные навыки каждый день! 💙`, {
+        reply_markup: this.getMainKeyboard(completedUser)
+      });
+    }
+  }
+}
 
     } catch (error) {
       console.error('❌ Ошибка в handleDayCallback:', error);
