@@ -237,12 +237,10 @@ this.bot.onText(/\/testday (\d+)/, this.handleTestDay.bind(this));
 
           await this.bot.sendMessage(user.telegram_id, dayContent.morningMessage, {
             reply_markup: dayContent.options ? {
-              inline_keyboard: [
-                dayContent.options.map((option, index) => ({
-                  text: option.text,
-                  callback_data: `day_${currentDay}_morning_${index}`
-                }))
-              ]
+              inline_keyboard: dayContent.options.map((option, index) => [{
+  text: option.text,
+  callback_data: `day_${currentDay}_morning_${index}`
+}])
             } : undefined
           });
 
