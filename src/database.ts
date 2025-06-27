@@ -45,6 +45,7 @@ export class Database {
 
   private async createTables(): Promise<void> {
     const queries = [
+      // Создание таблицы users (с обновленной структурой)
       `CREATE TABLE IF NOT EXISTS users (
         id SERIAL PRIMARY KEY,
         telegram_id BIGINT UNIQUE NOT NULL,
@@ -54,10 +55,12 @@ export class Database {
         notifications_enabled BOOLEAN DEFAULT true,
         preferred_time TIME DEFAULT '09:00',
         course_completed BOOLEAN DEFAULT false,
-        is_paused BOOLEAN DEFAULT false,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )`,
+
+      // Добавляем новое поле is_paused если его нет
+      `ALTER TABLE users ADD COLUMN IF NOT EXISTS is_paused BOOLEAN DEFAULT false`,
       
       `CREATE TABLE IF NOT EXISTS responses (
         id SERIAL PRIMARY KEY,
@@ -99,7 +102,7 @@ export class Database {
         UNIQUE(user_id, day, reminder_type, sent_date)
       )`,
 
-      // Индексы для производительности
+      // Индексы для производительности (только после того как все поля существуют)
       `CREATE INDEX IF NOT EXISTS idx_users_telegram_id ON users(telegram_id)`,
       `CREATE INDEX IF NOT EXISTS idx_users_active ON users(course_completed, is_paused, current_day)`,
       `CREATE INDEX IF NOT EXISTS idx_responses_user_day ON responses(user_id, day)`,
@@ -108,7 +111,14 @@ export class Database {
     ];
 
     for (const query of queries) {
-      await this.pool.query(query);
+      try {
+        await this.pool.query(query);
+        console.log(`✅ Выполнен запрос: ${query.substring(0, 50)}...`);
+      } catch (error) {
+        console.error(`❌ Ошибка в запросе: ${query.substring(0, 50)}...`);
+        console.error('Детали ошибки:', error);
+        throw error;
+      }
     }
   }
 
