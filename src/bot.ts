@@ -367,113 +367,199 @@ this.app.get('/dashboard/weekly-report', authenticate, async (req, res) => {
     ]);
     
     const unhandledAlerts = alerts.filter(a => !a.handled).length;
-    
-    const html = `<!DOCTYPE html>
+
+const html = `<!DOCTYPE html>
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Еженедельный отчет</title>
+    <title>Дашборд бота "Забота о себе"</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { 
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: white;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: #333;
             line-height: 1.6;
+            min-height: 100vh;
             padding: 20px;
         }
-        .container { max-width: 800px; margin: 0 auto; }
+        .container { 
+            max-width: 1200px; 
+            margin: 0 auto;
+        }
         .header {
+            background: rgba(255, 255, 255, 0.95);
+            color: #667eea;
+            padding: 30px;
             text-align: center;
-            border-bottom: 3px solid #667eea;
-            padding-bottom: 20px;
+            margin-bottom: 30px;
+            border-radius: 15px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+        }
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
             margin-bottom: 30px;
         }
-        .section {
-            margin: 30px 0;
-            padding: 20px;
-            border: 1px solid #eee;
-            border-radius: 8px;
+        .stat-card {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease;
         }
-        .positive { background: #e8f5e8; border-left: 4px solid #28a745; }
-        .warning { background: #fff3cd; border-left: 4px solid #ffc107; }
-        .critical { background: #f8d7da; border-left: 4px solid #dc3545; }
-        .print-btn {
-            background: #667eea;
+        .stat-card:hover {
+            transform: translateY(-5px);
+        }
+        .stat-card h3 {
+            color: #667eea;
+            margin-bottom: 15px;
+            font-size: 1.2em;
+        }
+        .big-number {
+            font-size: 3em;
+            font-weight: bold;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin: 15px 0;
+        }
+        .actions-card {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .action-btn {
+            background: linear-gradient(135deg, #667eea, #764ba2);
             color: white;
             padding: 12px 24px;
             border: none;
-            border-radius: 6px;
-            cursor: pointer;
+            border-radius: 8px;
+            text-decoration: none;
+            display: inline-block;
+            margin: 8px 8px 8px 0;
+            transition: all 0.3s ease;
             font-weight: 500;
-            margin: 10px 5px;
         }
-        @media print {
-            .no-print { display: none; }
-            body { background: white; }
+        .action-btn:hover { 
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+        }
+        .alert-badge {
+            background: #ff6b6b;
+            color: white;
+            border-radius: 50%;
+            padding: 4px 8px;
+            font-size: 0.8em;
+            margin-left: 8px;
+        }
+        .info-card {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+            border-left: 5px solid #667eea;
+        }
+        .feature-list {
+            list-style: none;
+            padding: 0;
+        }
+        .feature-list li {
+            padding: 8px 0;
+            color: #555;
+        }
+        .feature-list li::before {
+            content: "✓";
+            color: #28a745;
+            font-weight: bold;
+            margin-right: 10px;
         }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <h1>📊 Еженедельный отчет психолога</h1>
-            <p>Период: ${new Date(Date.now() - 7*24*60*60*1000).toLocaleDateString('ru-RU')} - ${new Date().toLocaleDateString('ru-RU')}</p>
-        </div>
-        
-        <div class="section positive">
-            <h2>📈 Основная статистика</h2>
-            <ul>
-                <li><strong>Всего пользователей:</strong> ${stats.totalUsers}</li>
-                <li><strong>Активных сегодня:</strong> ${stats.activeToday}</li>
-                <li><strong>Завершили курс:</strong> ${stats.completedCourse}</li>
-                <li><strong>Конверсия в завершение:</strong> ${Math.round((stats.completedCourse / stats.totalUsers) * 100)}%</li>
-            </ul>
+            <h1>Дашборд бота "Забота о себе"</h1>
+            <h4>Аналитика и управление курсом самосострадания</h4>
         </div>
 
-        ${unhandledAlerts > 0 ? `
-        <div class="section critical">
-            <h2>🚨 Сигналы безопасности</h2>
-            <p><strong>Необработанных алертов:</strong> ${unhandledAlerts}</p>
-            <p><strong>Всего за период:</strong> ${alerts.length}</p>
-            <p><strong>Требует внимания:</strong> Проверьте раздел алертов в дашборде</p>
-        </div>
-        ` : ''}
-
-        <div class="section">
-            <h2>💎 Лучшие инсайты недели</h2>
-            ${meaningfulResponses.map((insight, i) => `
-                <div style="margin: 15px 0; padding: 15px; background: #f8f9fa; border-radius: 6px;">
-                    <strong>${i+1}. ${insight.name || 'Аноним'} (День ${insight.day})</strong><br>
-                    <small style="color: #666;">${insight.question_type}</small><br>
-                    <em>"${insight.response_text.substring(0, 200)}${insight.response_text.length > 200 ? '...' : ''}"</em>
-                </div>
-            `).join('')}
-        </div>
-
-        <div class="section">
-            <h2>📋 Выводы и рекомендации</h2>
-            <h3>✅ Что работает хорошо:</h3>
-            <ul>
-                <li>Пользователи оставляют содержательные ответы</li>
-                <li>Система безопасности функционирует</li>
-                <li>Курс показывает стабильные результаты</li>
-            </ul>
+        <div class="stats-grid">
+            <div class="stat-card">
+                <h3>👥 Пользователи</h3>
+                <div class="big-number">${stats.totalUsers}</div>
+                <p>Всего зарегистрировано</p>
+            </div>
             
-            <h3>🔧 Области для улучшения:</h3>
-            <ul>
-                <li>Проанализировать точки отсева пользователей</li>
-                <li>Изучить качественную обратную связь</li>
-                <li>Рассмотреть персонализацию подхода</li>
+            <div class="stat-card">
+                <h3>📈 Активность сегодня</h3>
+                <div class="big-number">${stats.activeToday}</div>
+                <p>Активных пользователей</p>
+            </div>
+            
+            <div class="stat-card">
+                <h3>🎯 Завершили курс</h3>
+                <div class="big-number">${stats.completedCourse}</div>
+                <p>Прошли все 7 дней</p>
+            </div>
+
+            <div class="stat-card">
+                <h3>🚨 Алерты ${unhandledAlerts > 0 ? `<span class="alert-badge">${unhandledAlerts}</span>` : ''}</h3>
+                <div class="big-number">${alerts.length}</div>
+                <p>Всего сигналов безопасности</p>
+            </div>
+        </div>
+
+        <div class="actions-card">
+            <h3>📤 Экспорт и управление</h3>
+            <p>Основные функции для работы с данными:</p>
+            <div style="margin-top: 15px;">
+                <a href="/dashboard/export/responses" class="action-btn">📄 Экспорт ответов (CSV)</a>
+                <a href="/dashboard/export/users" class="action-btn">👥 Экспорт пользователей (CSV)</a>
+                <a href="/dashboard/alerts" class="action-btn">🚨 Алерты безопасности</a>
+            </div>
+        </div>
+
+        <div class="info-card">
+            <h3>📊 Возможности системы</h3>
+            <p>Текущий дашборд предоставляет:</p>
+            <ul class="feature-list">
+                <li>Мониторинг активных пользователей в реальном времени</li>
+                <li>Отслеживание завершения 7-дневного курса</li>
+                <li>Система алертов для критических ситуаций</li>
+                <li>Экспорт всех данных в формате CSV</li>
+                <li>Безопасное управление через Basic Auth</li>
             </ul>
         </div>
 
-        <div class="no-print" style="text-align: center; margin: 30px 0;">
-            <button class="print-btn" onclick="window.print()">🖨️ Печать отчета</button>
-            <button class="print-btn" onclick="window.location.href='/dashboard/analytics'" style="background: #28a745;">
-                📊 Подробная аналитика
-            </button>
+        <div class="info-card">
+            <h3>🔮 Планируемые улучшения</h3>
+            <p>В следующих версиях будут добавлены:</p>
+            <ul class="feature-list">
+                <li>Детальная аналитика по дням курса</li>
+                <li>Графики эмоциональной динамики участников</li>
+                <li>Поиск и фильтрация ответов пользователей</li>
+                <li>Еженедельные отчеты для психолога</li>
+                <li>Визуализация статистики в реальном времени</li>
+            </ul>
+        </div>
+
+        <div style="text-align: center; color: rgba(255, 255, 255, 0.8); margin-top: 30px;">
+            <p>🕐 Последнее обновление: ${new Date().toLocaleString('ru-RU')}</p>
+            <p style="margin-top: 10px; font-size: 14px;">
+                💙 Сделано с заботой для психологического благополучия
+            </p>
         </div>
     </div>
 </body>
