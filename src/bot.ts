@@ -378,7 +378,7 @@ this.bot.onText(/\/testday (\d+)/, this.handleTestDay.bind(this));
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Дашборд бота "Забота о себе"</title>
+    <title>Дашборд бота<br>"Забота о себе"</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { 
@@ -473,7 +473,7 @@ this.bot.onText(/\/testday (\d+)/, this.handleTestDay.bind(this));
 <body>
     <div class="container">
         <div class="header">
-            <h1>📊 Дашборд бота "Забота о себе"</h1>
+            <h1>📊 Дашборд бота<br>"Забота о себе"</h1>
             <p>Аналитика и управление курсом самосострадания</p>
         </div>
 
