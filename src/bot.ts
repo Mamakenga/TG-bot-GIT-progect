@@ -116,8 +116,8 @@ class SelfCareBot {
     this.bot.onText(/\/help/, this.handleHelp.bind(this));
     this.bot.onText(/\/stats/, this.handleStats.bind(this));
     this.bot.onText(/\/test/, this.handleTest.bind(this));
-this.bot.onText(/\/nextday/, this.handleNextDay.bind(this));
-this.bot.onText(/\/testday (\d+)/, this.handleTestDay.bind(this));
+    this.bot.onText(/\/nextday/, this.handleNextDay.bind(this));
+    this.bot.onText(/\/testday (\d+)/, this.handleTestDay.bind(this));
     this.bot.onText(/\/pause/, this.handlePause.bind(this));
     this.bot.onText(/\/resume/, this.handleResume.bind(this));
     this.bot.onText(/\/menu/, this.handleMenu.bind(this));
@@ -218,39 +218,38 @@ this.bot.onText(/\/testday (\d+)/, this.handleTestDay.bind(this));
   }
 
   // ✅ ИСПРАВЛЕНО: Утром ТОЛЬКО текст, БЕЗ кнопок
-// ✅ ИСПРАВЛЕНО: Утром ТОЛЬКО текст, БЕЗ кнопок
-private async sendMorningMessages(): Promise<void> {
-  try {
-    const activeUsers = await this.database.getActiveUsers();
-    console.log(`📊 Найдено ${activeUsers.length} активных пользователей`);
+  private async sendMorningMessages(): Promise<void> {
+    try {
+      const activeUsers = await this.database.getActiveUsers();
+      console.log(`📊 Найдено ${activeUsers.length} активных пользователей`);
 
-    for (const user of activeUsers) {
-      try {
-        if (user.course_completed || (user.current_day || 1) > 7) {
-          continue;
+      for (const user of activeUsers) {
+        try {
+          if (user.course_completed || (user.current_day || 1) > 7) {
+            continue;
+          }
+
+          const currentDay = user.current_day || 1;
+          const dayContent = getDayContent(currentDay);
+          if (!dayContent) {
+            console.log(`⚠️ Контент для дня ${currentDay} не найден`);
+            continue;
+          }
+
+          // ✅ ТОЛЬКО ТЕКСТ УТРОМ, БЕЗ КНОПОК
+          await this.bot.sendMessage(user.telegram_id, dayContent.morningMessage);
+
+          console.log(`✅ Утреннее сообщение отправлено пользователю ${user.telegram_id} (день ${currentDay})`);
+          await new Promise(resolve => setTimeout(resolve, 100));
+
+        } catch (userError) {
+          console.error(`❌ Ошибка отправки утреннего сообщения пользователю ${user.telegram_id}:`, userError);
         }
-
-        const currentDay = user.current_day || 1;
-        const dayContent = getDayContent(currentDay);
-        if (!dayContent) {
-          console.log(`⚠️ Контент для дня ${currentDay} не найден`);
-          continue;
-        }
-
-        // ✅ ТОЛЬКО ТЕКСТ УТРОМ, БЕЗ КНОПОК
-        await this.bot.sendMessage(user.telegram_id, dayContent.morningMessage);
-
-        console.log(`✅ Утреннее сообщение отправлено пользователю ${user.telegram_id} (день ${currentDay})`);
-        await new Promise(resolve => setTimeout(resolve, 100));
-
-      } catch (userError) {
-        console.error(`❌ Ошибка отправки утреннего сообщения пользователю ${user.telegram_id}:`, userError);
       }
+    } catch (error) {
+      console.error('❌ Ошибка в sendMorningMessages:', error);
     }
-  } catch (error) {
-    console.error('❌ Ошибка в sendMorningMessages:', error);
   }
-}
 
   private async sendExerciseMessages(): Promise<void> {
     try {
@@ -321,40 +320,39 @@ private async sendMorningMessages(): Promise<void> {
   }
 
   // ✅ ИСПРАВЛЕНО: Вечером кнопки ВЕРТИКАЛЬНО
-// ✅ ИСПРАВЛЕНО: Вечером кнопки ВЕРТИКАЛЬНО
-private async sendEveningMessages(): Promise<void> {
-  try {
-    const activeUsers = await this.database.getActiveUsers();
+  private async sendEveningMessages(): Promise<void> {
+    try {
+      const activeUsers = await this.database.getActiveUsers();
 
-    for (const user of activeUsers) {
-      try {
-        if (user.course_completed || (user.current_day || 1) > 7) continue;
+      for (const user of activeUsers) {
+        try {
+          if (user.course_completed || (user.current_day || 1) > 7) continue;
 
-        const currentDay = user.current_day || 1;
-        const dayContent = getDayContent(currentDay);
-        if (!dayContent) continue;
+          const currentDay = user.current_day || 1;
+          const dayContent = getDayContent(currentDay);
+          if (!dayContent) continue;
 
-        // ✅ КНОПКИ ВЕРТИКАЛЬНО (каждая на отдельной строке)
-        await this.bot.sendMessage(user.telegram_id, dayContent.eveningMessage, {
-          reply_markup: dayContent.options ? {
-            inline_keyboard: dayContent.options.map((option, index) => [{
-              text: option.text,
-              callback_data: `day_${currentDay}_evening_${index}`
-            }])
-          } : undefined
-        });
+          // ✅ КНОПКИ ВЕРТИКАЛЬНО (каждая на отдельной строке)
+          await this.bot.sendMessage(user.telegram_id, dayContent.eveningMessage, {
+            reply_markup: dayContent.options ? {
+              inline_keyboard: dayContent.options.map((option, index) => [{
+                text: option.text,
+                callback_data: `day_${currentDay}_evening_${index}`
+              }])
+            } : undefined
+          });
 
-        console.log(`✅ Вечернее сообщение отправлено пользователю ${user.telegram_id} (день ${currentDay})`);
-        await new Promise(resolve => setTimeout(resolve, 100));
+          console.log(`✅ Вечернее сообщение отправлено пользователю ${user.telegram_id} (день ${currentDay})`);
+          await new Promise(resolve => setTimeout(resolve, 100));
 
-      } catch (userError) {
-        console.error(`❌ Ошибка отправки вечернего сообщения пользователю ${user.telegram_id}:`, userError);
+        } catch (userError) {
+          console.error(`❌ Ошибка отправки вечернего сообщения пользователю ${user.telegram_id}:`, userError);
+        }
       }
+    } catch (error) {
+      console.error('❌ Ошибка в sendEveningMessages:', error);
     }
-  } catch (error) {
-    console.error('❌ Ошибка в sendEveningMessages:', error);
   }
-}
 
   // === АДМИН РОУТЫ ===
   private setupAdminRoutes(): void {
@@ -384,7 +382,7 @@ private async sendEveningMessages(): Promise<void> {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Дашборд бота<br>"Забота о себе"</title>
+    <title>Дашборд бота "Забота о себе"</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { 
@@ -479,7 +477,7 @@ private async sendEveningMessages(): Promise<void> {
 <body>
     <div class="container">
         <div class="header">
-            <h1>📊 Дашборд бота<br>"Забота о себе"</h1>
+            <h1>📊 Дашборд бота "Забота о себе"</h1>
             <p>Аналитика и управление курсом самосострадания</p>
         </div>
 
@@ -576,8 +574,6 @@ private async sendEveningMessages(): Promise<void> {
       await this.database.createUser(telegramId, name);
       const user = await this.database.getUser(telegramId);
       
-      const keyboard = this.getMainKeyboard(user);
-      
       if (user?.course_completed) {
         await this.bot.sendMessage(chatId, 
           `🎉 Привет${name ? `, ${name}` : ''}! 
@@ -586,7 +582,7 @@ private async sendEveningMessages(): Promise<void> {
 Поздравляю с этим достижением! 💙
 
 Можешь пройти курс заново или использовать полученные навыки в повседневной жизни.`, {
-          reply_markup: keyboard
+          reply_markup: this.getMainKeyboard(user)
         });
       } else if (user && user.current_day > 1) {
         await this.bot.sendMessage(chatId, 
@@ -594,7 +590,7 @@ private async sendEveningMessages(): Promise<void> {
 
 Ты сейчас на ${user.current_day} дне курса заботы о себе.
 Продолжим наше путешествие? 💙`, {
-          reply_markup: keyboard
+          reply_markup: this.getMainKeyboard(user)
         });
       } else {
         await this.bot.sendMessage(chatId, 
@@ -612,10 +608,10 @@ private async sendEveningMessages(): Promise<void> {
           }
         });
         
-        // Убираем setTimeout и показываем клавиатуру сразу после inline кнопок
-await this.bot.sendMessage(chatId, 'Для быстрого доступа используй кнопки ниже:', {
-  reply_markup: this.getMainKeyboard(user)
-});
+        // ✅ ИСПРАВЛЕНО: убран setTimeout, показываем клавиатуру сразу
+        await this.bot.sendMessage(chatId, 'Для быстрого доступа используй кнопки ниже:', {
+          reply_markup: this.getMainKeyboard(user)
+        });
       }
       
     } catch (error) {
@@ -728,6 +724,7 @@ await this.bot.sendMessage(chatId, 'Для быстрого доступа ис�
     }
   }
 
+  // ✅ ИСПРАВЛЕНО: Специальная обработка кнопки "Нужна помощь"
   private async handleDayCallback(chatId: number, telegramId: number, data: string): Promise<void> {
     try {
       const user = await this.database.getUser(telegramId);
@@ -735,8 +732,16 @@ await this.bot.sendMessage(chatId, 'Для быстрого доступа ис�
 
       const currentDay = user.current_day || 1;
 
+      // ✅ НОВАЯ ЛОГИКА: Специальная обработка кнопки "Нужна помощь"
+      if (data.includes('_exercise_help')) {
+        await this.handleExerciseHelp(chatId, currentDay);
+        return;
+      }
+
+      // Сохраняем ответ пользователя (для обычных кнопок)
       await this.database.saveResponse(user.id, currentDay, 'button_choice', data);
 
+      // Обычные ответы для других кнопок
       const responses = [
         'Спасибо за ответ! 💙',
         'Важно, что ты откликаешься 🌸', 
@@ -749,30 +754,187 @@ await this.bot.sendMessage(chatId, 'Для быстрого доступа ис�
         reply_markup: this.getMainKeyboard(user)
       });
 
+      // Переход на следующий день (только для вечерних ответов)
       if (data.includes('_evening_')) {
-        // Проверяем, не завершен ли уже этот день
-  const dayCompleted = await this.database.isDayCompleted(user.id, currentDay);
-  
-  if (!dayCompleted) {
-    const nextDay = currentDay + 1;
-    if (nextDay <= 7) {
-      await this.database.updateUserDay(telegramId, nextDay);
-      await this.database.markDayCompleted(user.id, currentDay);
-    } else {
-      await this.database.markCourseCompleted(telegramId);
-      const completedUser = await this.database.getUser(telegramId);
-      
-      await this.bot.sendMessage(chatId, 
-        `🎉 Поздравляю! Ты завершила 7-дневный курс заботы о себе!\n\n` +
-        `Это настоящее достижение. Используй полученные навыки каждый день! 💙`, {
-        reply_markup: this.getMainKeyboard(completedUser)
-      });
-    }
-  }
-}
+        const dayCompleted = await this.database.isDayCompleted(user.id, currentDay);
+        
+        if (!dayCompleted) {
+          const nextDay = currentDay + 1;
+          if (nextDay <= 7) {
+            await this.database.updateUserDay(telegramId, nextDay);
+            await this.database.markDayCompleted(user.id, currentDay);
+          } else {
+            await this.database.markCourseCompleted(telegramId);
+            const completedUser = await this.database.getUser(telegramId);
+            
+            await this.bot.sendMessage(chatId, 
+              `🎉 Поздравляю! Ты завершила 7-дневный курс заботы о себе!\n\n` +
+              `Это настоящее достижение. Используй полученные навыки каждый день! 💙`, {
+              reply_markup: this.getMainKeyboard(completedUser)
+            });
+          }
+        }
+      }
 
     } catch (error) {
       console.error('❌ Ошибка в handleDayCallback:', error);
+    }
+  }
+
+  // ✅ НОВЫЙ МЕТОД: Подробная помощь с упражнениями
+  private async handleExerciseHelp(chatId: number, day: number): Promise<void> {
+    try {
+      const helpTexts: { [key: number]: string } = {
+        1: `💡 **Помощь с упражнением "Осознание боли":**
+
+Это упражнение учит распознавать и принимать свою боль без попыток её исправить.
+
+🔹 **Что делать:**
+• Сядь удобно и закрой глаза
+• Вспомни недавнюю ситуацию, которая расстроила
+• НЕ думай "как это исправить"
+• Просто скажи: "Да, мне было больно"
+
+🔹 **Нормальные реакции:**
+• Желание отвлечься - это нормально
+• Слёзы или грусть - позволь им быть
+• Сопротивление - тоже естественно
+
+💙 **Помни:** цель НЕ избавиться от боли, а признать её.`,
+
+        2: `💡 **Помощь с упражнением "Поймать критика":**
+
+Внутренний критик - автоматические мысли, которые нас осуждают.
+
+🔹 **Как заметить критика:**
+• Обращай внимание на мысли после ошибок
+• Слушай, что говоришь себе в зеркале
+• Замечай фразы "опять ты...", "какая же ты..."
+
+🔹 **Как переформулировать:**
+• Вместо "дура" → "человек, который ошибся"
+• Вместо "всё плохо" → "это сложно, но решаемо"
+• Вместо "никогда не получится" → "пока не получается"
+
+💙 **Помни:** цель не заглушить критика, а сделать его добрее.`,
+
+        3: `💡 **Помощь с упражнением "Письмо себе":**
+
+Это письмо от лица самого мудрого и доброго друга.
+
+🔹 **С чего начать:**
+• "Дорогая [имя], я вижу как тебе трудно..."
+• "Я хочу, чтобы ты знала..."
+• "Ты заслуживаешь..."
+
+🔹 **О чём писать:**
+• Признание твоих усилий
+• Понимание твоих трудностей
+• Слова поддержки и любви
+• То, что сказал бы лучший друг
+
+💙 **Помни:** пиши так, как писал бы кто-то, кто тебя очень любит.`,
+
+        4: `💡 **Помощь с упражнением "Сострадательное прикосновение":**
+
+Прикосновения активируют успокаивающую систему организма.
+
+🔹 **Варианты прикосновений:**
+• Рука на сердце
+• Рука на щеке
+• Объятие себя руками
+• Поглаживание руки
+
+🔹 **Что говорить:**
+• "Я здесь"
+• "Я поддержу тебя"
+• "Ты не одна"
+• "Это пройдёт"
+
+💙 **Помни:** это не глупо, это научно обоснованный способ самоуспокоения.`,
+
+        5: `💡 **Помощь с упражнением "Разрешение быть уязвимой":**
+
+Уязвимость - это смелость быть настоящей.
+
+🔹 **Как практиковать:**
+• Назови эмоцию: "Сейчас я чувствую..."
+• Не пытайся её изменить
+• Просто побудь с чувством 1-2 минуты
+• Скажи: "Это нормально чувствовать"
+
+🔹 **Если сложно:**
+• Начни с менее болезненных эмоций
+• Представь, что утешаешь ребёнка
+• Помни: чувства временны
+
+💙 **Помни:** уязвимость - источник связи и роста.`,
+
+        6: `💡 **Помощь с упражнением "Забота о потребностях":**
+
+Учимся слышать и удовлетворять свои потребности.
+
+🔹 **Базовые потребности:**
+• Физические: вода, еда, сон, движение
+• Эмоциональные: поддержка, понимание
+• Ментальные: покой, стимуляция
+• Духовные: смысл, красота
+
+🔹 **Как определить потребность:**
+• "Что мне сейчас нужно?"
+• "Чего не хватает?"
+• "Что помогло бы почувствовать себя лучше?"
+
+💙 **Помни:** забота о себе не эгоизм, а необходимость.`,
+
+        7: `💡 **Помощь с упражнением "Благодарность себе":**
+
+Финальное упражнение - признание пройденного пути.
+
+🔹 **За что благодарить:**
+• За каждое выполненное упражнение
+• За моменты самосострадания
+• За попытки быть добрее к себе
+• За завершение курса
+
+🔹 **Как формулировать:**
+• "Спасибо себе за..."
+• "Я ценю в себе..."
+• "Я горжусь тем, что..."
+
+💙 **Помни:** ты проделала серьёзную внутреннюю работу. Это достижение!`
+      };
+
+      const helpText = helpTexts[day] || `💡 **Помощь с упражнением дня ${day}:**
+
+Если упражнение кажется сложным, это нормально. Забота о себе требует практики.
+
+💙 **Общие советы:**
+• Не торопись
+• Будь терпелива к себе  
+• Начни с малого
+• Главное - попробовать`;
+
+      await this.bot.sendMessage(chatId, helpText);
+
+      // Добавляем контакт психолога
+      await this.bot.sendMessage(chatId, 
+        `🧠 **Нужна персональная поддержка?**
+
+Если упражнение вызывает сильные эмоции или ты чувствуешь, что нужна дополнительная помощь, можешь обратиться к психологу:
+
+👩‍⚕️ **@amalinovskaya_psy** - профессиональная поддержка
+
+💙 Помни: просить помощи - это сила, а не слабость.`, {
+        reply_markup: {
+          inline_keyboard: [[
+            { text: '💙 Понятно, спасибо', callback_data: 'help_understood' }
+          ]]
+        }
+      });
+
+    } catch (error) {
+      console.error('❌ Ошибка в handleExerciseHelp:', error);
     }
   }
 
@@ -828,7 +990,7 @@ await this.bot.sendMessage(chatId, 'Для быстрого доступа ис�
     const helpText = `📋 Помощь по боту:\n\n` +
       `🌸 Основные кнопки:\n• Старт - Начать или перезапустить курс\n• Мой прогресс - Показать текущий статус\n• Пауза/Продолжить - Управление курсом\n\n` +
       `💙 О программе:\n7-дневный курс заботы о себе\n4 сообщения в день (9:00, 13:00, 16:00, 20:00)\n\n` +
-      `🆘 Поддержка: help@harmony4soul.com, @amalinovskaya_psy`;
+      `🆘 Поддержка: help@harmony4soul.com`;
     
     await this.bot.sendMessage(msg.chat.id, helpText, {
       reply_markup: this.getMainKeyboard(user)
@@ -922,197 +1084,201 @@ await this.bot.sendMessage(chatId, 'Для быстрого доступа ис�
       console.error('❌ Ошибка в handleResume:', error);
     }
   }
-private async handleRestart(msg: TelegramBot.Message): Promise<void> {
-  const telegramId = msg.from?.id;
-  const chatId = msg.chat.id;
-  const name = msg.from?.first_name;
 
-  if (!telegramId) return;
+  private async handleRestart(msg: TelegramBot.Message): Promise<void> {
+    const telegramId = msg.from?.id;
+    const chatId = msg.chat.id;
+    const name = msg.from?.first_name;
 
-  try {
-    console.log(`👤 Пользователь ${telegramId} перезапускает курс`);
-    
-    // Сбрасываем прогресс и запускаем заново
-    await this.database.resetUserProgress(telegramId);
-    await this.database.updateUserDay(telegramId, 1);
-    const user = await this.database.getUser(telegramId);
-    
-    await this.bot.sendMessage(chatId, 
-      `🎉 Отлично${name ? `, ${name}` : ''}! Ты записана на курс заново!\n\n` +
-      `Завтра в 9:00 утра тебе придет первое сообщение.\n` +
-      `За день будет 4 сообщения:\n` +
-      `🌅 09:00 - Утреннее приветствие\n` +
-      `🌸 13:00 - Упражнение дня\n` +
-      `💝 16:00 - Фраза для размышления\n` +
-      `🌙 20:00 - Вечерняя рефлексия\n\n` +
-      `Готова начать завтра заново? 💙`, {
-      reply_markup: this.getMainKeyboard(user)
-    });
-    
-  } catch (error) {
-    console.error(`❌ Ошибка в handleRestart:`, error);
-    await this.bot.sendMessage(chatId, 'Произошла ошибка при перезапуске курса.');
-  }
-}
-private async handleTest(msg: TelegramBot.Message): Promise<void> {
-  const telegramId = msg.from?.id;
-  const chatId = msg.chat.id;
+    if (!telegramId) return;
 
-  if (!telegramId) return;
-
-  try {
-    const user = await this.database.getUser(telegramId);
-    if (!user) {
-      await this.bot.sendMessage(chatId, 'Сначала запусти /start');
-      return;
-    }
-
-    const currentDay = user.current_day || 1;
-    const dayContent = getDayContent(currentDay);
-    
-    if (!dayContent) {
-      await this.bot.sendMessage(chatId, 'Контент для этого дня не найден');
-      return;
-    }
-
-    await this.bot.sendMessage(chatId, `🧪 ТЕСТ: День ${currentDay}\n\n=== УТРО ===`);
-    
-    // ✅ Утреннее сообщение (ТОЛЬКО ТЕКСТ)
-    await this.bot.sendMessage(chatId, dayContent.morningMessage);
-
-    // Через 3 секунды - упражнение
-    setTimeout(async () => {
-      await this.bot.sendMessage(chatId, `=== УПРАЖНЕНИЕ ===`);
-      await this.bot.sendMessage(chatId, dayContent.exerciseMessage, {
-        reply_markup: {
-          inline_keyboard: [[
-            { text: '✅ Попробую', callback_data: `day_${currentDay}_exercise_ready` },
-            { text: '❓ Нужна помощь', callback_data: `day_${currentDay}_exercise_help` },
-            { text: '⏰ Сделаю позже', callback_data: `day_${currentDay}_exercise_later` }
-          ]]
-        }
+    try {
+      console.log(`👤 Пользователь ${telegramId} перезапускает курс`);
+      
+      await this.database.resetUserProgress(telegramId);
+      await this.database.updateUserDay(telegramId, 1);
+      const user = await this.database.getUser(telegramId);
+      
+      await this.bot.sendMessage(chatId, 
+        `🎉 Отлично${name ? `, ${name}` : ''}! Ты записана на курс заново!\n\n` +
+        `Завтра в 9:00 утра тебе придет первое сообщение.\n` +
+        `За день будет 4 сообщения:\n` +
+        `🌅 09:00 - Утреннее приветствие\n` +
+        `🌸 13:00 - Упражнение дня\n` +
+        `💝 16:00 - Фраза для размышления\n` +
+        `🌙 20:00 - Вечерняя рефлексия\n\n` +
+        `Готова начать завтра заново? 💙`, {
+        reply_markup: this.getMainKeyboard(user)
       });
-    }, 3000);
+      
+    } catch (error) {
+      console.error(`❌ Ошибка в handleRestart:`, error);
+      await this.bot.sendMessage(chatId, 'Произошла ошибка при перезапуске курса.');
+    }
+  }
 
-    // Через 6 секунд - фраза дня
-    setTimeout(async () => {
-      await this.bot.sendMessage(chatId, `=== ФРАЗА ДНЯ ===`);
-      await this.bot.sendMessage(chatId, dayContent.phraseOfDay, {
-        reply_markup: {
-          inline_keyboard: [[
-            { text: '💙 Откликается', callback_data: `day_${currentDay}_phrase_good` },
-            { text: '🤔 Звучит странно', callback_data: `day_${currentDay}_phrase_strange` },
-            { text: '😔 Сложно поверить', callback_data: `day_${currentDay}_phrase_hard` }
-          ]]
-        }
+  private async handleTest(msg: TelegramBot.Message): Promise<void> {
+    const telegramId = msg.from?.id;
+    const chatId = msg.chat.id;
+
+    if (!telegramId) return;
+
+    try {
+      const user = await this.database.getUser(telegramId);
+      if (!user) {
+        await this.bot.sendMessage(chatId, 'Сначала запусти /start');
+        return;
+      }
+
+      const currentDay = user.current_day || 1;
+      const dayContent = getDayContent(currentDay);
+      
+      if (!dayContent) {
+        await this.bot.sendMessage(chatId, 'Контент для этого дня не найден');
+        return;
+      }
+
+      await this.bot.sendMessage(chatId, `🧪 ТЕСТ: День ${currentDay}\n\n=== УТРО ===`);
+      
+      // ✅ Утреннее сообщение (ТОЛЬКО ТЕКСТ)
+      await this.bot.sendMessage(chatId, dayContent.morningMessage);
+
+      // Через 3 секунды - упражнение
+      setTimeout(async () => {
+        await this.bot.sendMessage(chatId, `=== УПРАЖНЕНИЕ ===`);
+        await this.bot.sendMessage(chatId, dayContent.exerciseMessage, {
+          reply_markup: {
+            inline_keyboard: [[
+              { text: '✅ Попробую', callback_data: `day_${currentDay}_exercise_ready` },
+              { text: '❓ Нужна помощь', callback_data: `day_${currentDay}_exercise_help` },
+              { text: '⏰ Сделаю позже', callback_data: `day_${currentDay}_exercise_later` }
+            ]]
+          }
+        });
+      }, 3000);
+
+      // Через 6 секунд - фраза дня
+      setTimeout(async () => {
+        await this.bot.sendMessage(chatId, `=== ФРАЗА ДНЯ ===`);
+        await this.bot.sendMessage(chatId, dayContent.phraseOfDay, {
+          reply_markup: {
+            inline_keyboard: [[
+              { text: '💙 Откликается', callback_data: `day_${currentDay}_phrase_good` },
+              { text: '🤔 Звучит странно', callback_data: `day_${currentDay}_phrase_strange` },
+              { text: '😔 Сложно поверить', callback_data: `day_${currentDay}_phrase_hard` }
+            ]]
+          }
+        });
+      }, 6000);
+
+      // Через 9 секунд - вечер (ВЕРТИКАЛЬНЫЕ кнопки)
+      setTimeout(async () => {
+        await this.bot.sendMessage(chatId, `=== ВЕЧЕР ===`);
+        await this.bot.sendMessage(chatId, dayContent.eveningMessage, {
+          reply_markup: dayContent.options ? {
+            inline_keyboard: dayContent.options.map((option, index) => [{
+              text: option.text,
+              callback_data: `day_${currentDay}_evening_${index}`
+            }])
+          } : undefined
+        });
+      }, 9000);
+
+    } catch (error) {
+      console.error('❌ Ошибка в handleTest:', error);
+      await this.bot.sendMessage(chatId, 'Произошла ошибка при тестировании');
+    }
+  }
+
+  private async handleMenu(msg: TelegramBot.Message): Promise<void> {
+    const telegramId = msg.from?.id;
+    const chatId = msg.chat.id;
+
+    if (!telegramId) return;
+
+    try {
+      const user = await this.database.getUser(telegramId);
+      await this.bot.sendMessage(chatId, 'Вот твоё меню:', {
+        reply_markup: this.getMainKeyboard(user)
       });
-    }, 6000);
-
-    // Через 9 секунд - вечер (ВЕРТИКАЛЬНЫЕ кнопки)
-    setTimeout(async () => {
-      await this.bot.sendMessage(chatId, `=== ВЕЧЕР ===`);
-      await this.bot.sendMessage(chatId, dayContent.eveningMessage, {
-        reply_markup: dayContent.options ? {
-          inline_keyboard: dayContent.options.map((option, index) => [{
-            text: option.text,
-            callback_data: `day_${currentDay}_evening_${index}`
-          }])
-        } : undefined
-      });
-    }, 9000);
-
-  } catch (error) {
-    console.error('❌ Ошибка в handleTest:', error);
-    await this.bot.sendMessage(chatId, 'Произошла ошибка при тестировании');
-  }
-}
-private async handleMenu(msg: TelegramBot.Message): Promise<void> {
-  const telegramId = msg.from?.id;
-  const chatId = msg.chat.id;
-
-  if (!telegramId) return;
-
-  try {
-    const user = await this.database.getUser(telegramId);
-    await this.bot.sendMessage(chatId, 'Вот твоё меню:', {
-      reply_markup: this.getMainKeyboard(user)
-    });
-  } catch (error) {
-    console.error('❌ Ошибка в handleMenu:', error);
-  }
-}
-private async handleNextDay(msg: TelegramBot.Message): Promise<void> {
-  const telegramId = msg.from?.id;
-  const chatId = msg.chat.id;
-
-  if (!telegramId) return;
-
-  try {
-    const user = await this.database.getUser(telegramId);
-    if (!user) {
-      await this.bot.sendMessage(chatId, 'Сначала запусти /start');
-      return;
+    } catch (error) {
+      console.error('❌ Ошибка в handleMenu:', error);
     }
-
-    const currentDay = user.current_day || 1;
-    const nextDay = currentDay + 1;
-
-    if (nextDay > 7) {
-      await this.database.markCourseCompleted(telegramId);
-      await this.bot.sendMessage(chatId, '🎉 Курс завершен! Используй /start для перезапуска');
-    } else {
-      await this.database.updateUserDay(telegramId, nextDay);
-      await this.database.markDayCompleted(user.id, currentDay);
-      await this.bot.sendMessage(chatId, `✅ Переключен на день ${nextDay}. Теперь /test покажет день ${nextDay}`);
-    }
-
-  } catch (error) {
-    console.error('❌ Ошибка в handleNextDay:', error);
   }
-}
 
-private async handleTestDay(msg: TelegramBot.Message, match: RegExpExecArray | null): Promise<void> {
-  const telegramId = msg.from?.id;
-  const chatId = msg.chat.id;
-  const dayNumber = match ? parseInt(match[1]) : 1;
+  private async handleNextDay(msg: TelegramBot.Message): Promise<void> {
+    const telegramId = msg.from?.id;
+    const chatId = msg.chat.id;
 
-  if (!telegramId) return;
+    if (!telegramId) return;
 
-  try {
-    if (dayNumber < 1 || dayNumber > 7) {
-      await this.bot.sendMessage(chatId, 'Укажи день от 1 до 7. Например: /testday 3');
-      return;
+    try {
+      const user = await this.database.getUser(telegramId);
+      if (!user) {
+        await this.bot.sendMessage(chatId, 'Сначала запусти /start');
+        return;
+      }
+
+      const currentDay = user.current_day || 1;
+      const nextDay = currentDay + 1;
+
+      if (nextDay > 7) {
+        await this.database.markCourseCompleted(telegramId);
+        await this.bot.sendMessage(chatId, '🎉 Курс завершен! Используй /start для перезапуска');
+      } else {
+        await this.database.updateUserDay(telegramId, nextDay);
+        await this.database.markDayCompleted(user.id, currentDay);
+        await this.bot.sendMessage(chatId, `✅ Переключен на день ${nextDay}. Теперь /test покажет день ${nextDay}`);
+      }
+
+    } catch (error) {
+      console.error('❌ Ошибка в handleNextDay:', error);
     }
-
-    const dayContent = getDayContent(dayNumber);
-    if (!dayContent) {
-      await this.bot.sendMessage(chatId, 'Контент для этого дня не найден');
-      return;
-    }
-
-    await this.bot.sendMessage(chatId, `🧪 ПРЕДВАРИТЕЛЬНЫЙ ПРОСМОТР: День ${dayNumber}\n\n=== УТРО ===`);
-    
-    await this.bot.sendMessage(chatId, dayContent.morningMessage);
-    
-    setTimeout(async () => {
-      await this.bot.sendMessage(chatId, `=== УПРАЖНЕНИЕ ===`);
-      await this.bot.sendMessage(chatId, dayContent.exerciseMessage);
-    }, 2000);
-
-    setTimeout(async () => {
-      await this.bot.sendMessage(chatId, `=== ФРАЗА ДНЯ ===`);
-      await this.bot.sendMessage(chatId, dayContent.phraseOfDay);
-    }, 4000);
-
-    setTimeout(async () => {
-      await this.bot.sendMessage(chatId, `=== ВЕЧЕР ===`);
-      await this.bot.sendMessage(chatId, dayContent.eveningMessage);
-    }, 6000);
-
-  } catch (error) {
-    console.error('❌ Ошибка в handleTestDay:', error);
   }
-}
+
+  private async handleTestDay(msg: TelegramBot.Message, match: RegExpExecArray | null): Promise<void> {
+    const telegramId = msg.from?.id;
+    const chatId = msg.chat.id;
+    const dayNumber = match ? parseInt(match[1]) : 1;
+
+    if (!telegramId) return;
+
+    try {
+      if (dayNumber < 1 || dayNumber > 7) {
+        await this.bot.sendMessage(chatId, 'Укажи день от 1 до 7. Например: /testday 3');
+        return;
+      }
+
+      const dayContent = getDayContent(dayNumber);
+      if (!dayContent) {
+        await this.bot.sendMessage(chatId, 'Контент для этого дня не найден');
+        return;
+      }
+
+      await this.bot.sendMessage(chatId, `🧪 ПРЕДВАРИТЕЛЬНЫЙ ПРОСМОТР: День ${dayNumber}\n\n=== УТРО ===`);
+      
+      await this.bot.sendMessage(chatId, dayContent.morningMessage);
+      
+      setTimeout(async () => {
+        await this.bot.sendMessage(chatId, `=== УПРАЖНЕНИЕ ===`);
+        await this.bot.sendMessage(chatId, dayContent.exerciseMessage);
+      }, 2000);
+
+      setTimeout(async () => {
+        await this.bot.sendMessage(chatId, `=== ФРАЗА ДНЯ ===`);
+        await this.bot.sendMessage(chatId, dayContent.phraseOfDay);
+      }, 4000);
+
+      setTimeout(async () => {
+        await this.bot.sendMessage(chatId, `=== ВЕЧЕР ===`);
+        await this.bot.sendMessage(chatId, dayContent.eveningMessage);
+      }, 6000);
+
+    } catch (error) {
+      console.error('❌ Ошибка в handleTestDay:', error);
+    }
+  }
+
   private async handleStats(msg: TelegramBot.Message): Promise<void> {
     const telegramId = msg.from?.id;
     if (!telegramId || telegramId.toString() !== config.telegram.adminId) return;
