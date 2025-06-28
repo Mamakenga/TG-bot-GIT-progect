@@ -311,61 +311,64 @@ export class Database {
     `;
     await this.pool.query(query, [userId, day]);
   }
-  async isDayCompleted(userId: number, day: number): Promise<boolean> {
-  const query = `
-    SELECT completed FROM progress 
-    WHERE user_id = $1 AND day = $2 AND completed = true
-  `;
-  const result = await this.pool.query(query, [userId, day]);
-  return result.rows.length > 0;
 
-}
+  async isDayCompleted(userId: number, day: number): Promise<boolean> {
+    const query = `
+      SELECT completed FROM progress 
+      WHERE user_id = $1 AND day = $2 AND completed = true
+    `;
+    const result = await this.pool.query(query, [userId, day]);
+    return result.rows.length > 0;
+  }
+
   async markCourseCompleted(telegramId: number): Promise<void> {
     const query = 'UPDATE users SET course_completed = true, updated_at = CURRENT_TIMESTAMP WHERE telegram_id = $1';
     await this.pool.query(query, [telegramId]);
   }
-async resetUserProgress(telegramId: number): Promise<void> {
-  try {
-    // Проверяем, есть ли поле is_paused
-    const checkColumn = await this.pool.query(`
-      SELECT column_name 
-      FROM information_schema.columns 
-      WHERE table_name = 'users' AND column_name = 'is_paused'
-    `);
-    
-    let query: string;
-    if (checkColumn.rows.length > 0) {
-      // Если поле is_paused существует
-      query = `
-        UPDATE users 
-        SET course_completed = false, 
-            current_day = 1, 
-            is_paused = false,
-            updated_at = CURRENT_TIMESTAMP 
-        WHERE telegram_id = $1
-      `;
-    } else {
-      // Если поля is_paused нет
-      query = `
-        UPDATE users 
-        SET course_completed = false, 
-            current_day = 1, 
-            updated_at = CURRENT_TIMESTAMP 
-        WHERE telegram_id = $1
-      `;
+
+  async resetUserProgress(telegramId: number): Promise<void> {
+    try {
+      // Проверяем, есть ли поле is_paused
+      const checkColumn = await this.pool.query(`
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name = 'users' AND column_name = 'is_paused'
+      `);
+      
+      let query: string;
+      if (checkColumn.rows.length > 0) {
+        // Если поле is_paused существует
+        query = `
+          UPDATE users 
+          SET course_completed = false, 
+              current_day = 1, 
+              is_paused = false,
+              updated_at = CURRENT_TIMESTAMP 
+          WHERE telegram_id = $1
+        `;
+      } else {
+        // Если поля is_paused нет
+        query = `
+          UPDATE users 
+          SET course_completed = false, 
+              current_day = 1, 
+              updated_at = CURRENT_TIMESTAMP 
+          WHERE telegram_id = $1
+        `;
+      }
+      
+      await this.pool.query(query, [telegramId]);
+      
+      // Также очищаем прогресс
+      await this.pool.query('DELETE FROM progress WHERE user_id = (SELECT id FROM users WHERE telegram_id = $1)', [telegramId]);
+      
+      console.log(`✅ Прогресс пользователя ${telegramId} сброшен`);
+    } catch (error) {
+      console.error('❌ Ошибка в resetUserProgress:', error);
+      throw error;
     }
-    
-    await this.pool.query(query, [telegramId]);
-    
-    // Также очищаем прогресс
-    await this.pool.query('DELETE FROM progress WHERE user_id = (SELECT id FROM users WHERE telegram_id = $1)', [telegramId]);
-    
-    console.log(`✅ Прогресс пользователя ${telegramId} сброшен`);
-  } catch (error) {
-    console.error('❌ Ошибка в resetUserProgress:', error);
-    throw error;
   }
-}
+
   async createAlert(userId: number, triggerWord: string, message: string): Promise<void> {
     const query = `
       INSERT INTO alerts (user_id, trigger_word, message) 
@@ -403,13 +406,13 @@ async resetUserProgress(telegramId: number): Promise<void> {
   async getDetailedStats(): Promise<any> {
     const queries = {
       usersByDay: `
-  SELECT current_day, COUNT(*) as count 
-  FROM users 
-  WHERE course_completed = false 
-    AND (is_paused = false OR is_paused IS NULL)
-  GROUP BY current_day 
-  ORDER BY current_day
-`,
+        SELECT current_day, COUNT(*) as count 
+        FROM users 
+        WHERE course_completed = false 
+          AND (is_paused = false OR is_paused IS NULL)
+        GROUP BY current_day 
+        ORDER BY current_day
+      `,
       completionRate: `
         SELECT 
           day,
@@ -498,11 +501,175 @@ async resetUserProgress(telegramId: number): Promise<void> {
     return result.rows;
   }
 
+  // === НОВЫЕ МЕТОДЫ ДЛЯ АНАЛИТИКИ ===
+
+  // Анализ завершаемости по дням
+  async getCompletionByDays(): Promise<any[]> {
+    const query = `
+      WITH day_stats AS (
+        SELECT 
+          day,
+          COUNT(DISTINCT user_id) as started_day,
+          COUNT(DISTINCT CASE WHEN completed = true THEN user_id END) as completed_day
+        FROM progress 
+        GROUP BY day
+      )
+      SELECT 
+        day,
+        started_day,
+        completed_day,
+        ROUND((completed_day::float / NULLIF(started_day, 0) * 100), 1) as completion_rate
+      FROM day_stats 
+      ORDER BY day;
+    `;
+    
+    const result = await this.pool.query(query);
+    return result.rows;
+  }
+
+  // Эмоциональная динамика
+  async getEmotionalDynamics(): Promise<any[]> {
+    const query = `
+      SELECT 
+        r.day,
+        COUNT(*) as total_responses,
+        COUNT(CASE 
+          WHEN r.response_text ILIKE '%хорошо%' 
+            OR r.response_text ILIKE '%радост%' 
+            OR r.response_text = '😊' 
+            OR r.response_text ILIKE '%отлично%'
+            OR r.response_text ILIKE '%прекрасно%'
+          THEN 1 
+        END) as positive,
+        COUNT(CASE 
+          WHEN r.response_text ILIKE '%плохо%' 
+            OR r.response_text ILIKE '%грустн%' 
+            OR r.response_text = '😔'
+            OR r.response_text ILIKE '%сложно%'
+            OR r.response_text ILIKE '%тяжело%'
+          THEN 1 
+        END) as negative
+      FROM responses r
+      WHERE r.response_type = 'text'
+        AND r.created_at > NOW() - INTERVAL '30 days'
+      GROUP BY r.day 
+      ORDER BY r.day;
+    `;
+    
+    const result = await this.pool.query(query);
+    return result.rows;
+  }
+
+  // Содержательные ответы для анализа
+  async getMeaningfulResponses(limit: number = 20): Promise<any[]> {
+    const query = `
+      SELECT 
+        u.name,
+        u.telegram_id,
+        r.day,
+        r.question_type,
+        r.response_text,
+        LENGTH(r.response_text) as text_length,
+        r.created_at
+      FROM responses r
+      JOIN users u ON r.user_id = u.id
+      WHERE r.response_type = 'text' 
+        AND LENGTH(r.response_text) > 50
+        AND r.response_text NOT ILIKE '%спасибо%'
+        AND r.response_text NOT ILIKE '%понятно%'
+        AND r.created_at > NOW() - INTERVAL '30 days'
+      ORDER BY LENGTH(r.response_text) DESC, r.created_at DESC
+      LIMIT $1;
+    `;
+    
+    const result = await this.pool.query(query, [limit]);
+    return result.rows;
+  }
+
+  // Поиск ответов с фильтрами
+  async searchResponses(filters: {
+    day?: number;
+    keyword?: string;
+    minLength?: number;
+    limit?: number;
+  }): Promise<any[]> {
+    let query = `
+      SELECT 
+        u.name,
+        u.telegram_id,
+        r.day,
+        r.question_type,
+        r.response_text,
+        r.created_at
+      FROM responses r
+      JOIN users u ON r.user_id = u.id
+      WHERE r.response_type = 'text'
+        AND r.response_text IS NOT NULL
+    `;
+    
+    const params: any[] = [];
+    let paramIndex = 1;
+    
+    if (filters.day) {
+      query += ` AND r.day = $${paramIndex}`;
+      params.push(filters.day);
+      paramIndex++;
+    }
+    
+    if (filters.keyword) {
+      query += ` AND r.response_text ILIKE $${paramIndex}`;
+      params.push(`%${filters.keyword}%`);
+      paramIndex++;
+    }
+    
+    if (filters.minLength) {
+      query += ` AND LENGTH(r.response_text) >= $${paramIndex}`;
+      params.push(filters.minLength);
+      paramIndex++;
+    }
+    
+    query += ` ORDER BY r.created_at DESC LIMIT $${paramIndex}`;
+    params.push(filters.limit || 50);
+    
+    const result = await this.pool.query(query, params);
+    return result.rows;
+  }
+
+  // Проблемные дни (низкое удержание)
+  async getDropoffDays(): Promise<any[]> {
+    const query = `
+      WITH day_transitions AS (
+        SELECT 
+          current_day as day,
+          COUNT(*) as users_on_day,
+          LAG(COUNT(*)) OVER (ORDER BY current_day) as users_prev_day
+        FROM users 
+        WHERE current_day BETWEEN 1 AND 7
+          AND course_completed = false
+        GROUP BY current_day
+      )
+      SELECT 
+        day,
+        users_on_day,
+        users_prev_day,
+        CASE 
+          WHEN users_prev_day > 0 
+          THEN ROUND((users_on_day::float / users_prev_day * 100), 1)
+          ELSE 100 
+        END as retention_rate
+      FROM day_transitions
+      WHERE users_prev_day IS NOT NULL
+        AND users_prev_day > 0
+      ORDER BY day;
+    `;
+    
+    const result = await this.pool.query(query);
+    return result.rows;
+  }
+
   async close(): Promise<void> {
     await this.pool.end();
   }
-
-
 }
 
 export default Database;

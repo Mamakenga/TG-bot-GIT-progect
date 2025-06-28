@@ -477,8 +477,8 @@ class SelfCareBot {
 <body>
     <div class="container">
         <div class="header">
-            <h1>📊 Дашборд бота "Забота о себе"</h1>
-            <p>Аналитика и управление курсом самосострадания</p>
+            <h1>Дашборд бота<br>"Забота о себе"</h1>
+            <h4>Аналитика и управление курсом самосострадания</h4>
         </div>
 
         <div class="stats-grid">
@@ -556,7 +556,823 @@ class SelfCareBot {
         res.status(500).send('Ошибка экспорта: ' + error);
       }
     });
+// Добавь эти роуты в метод setupAdminRoutes() ПЕРЕД строкой this.app.get('/', ...)
 
+// === НОВАЯ АНАЛИТИКА ДЛЯ ПСИХОЛОГА ===
+
+// Главная страница аналитики  
+this.app.get('/dashboard/analytics', authenticate, async (req, res) => {
+  try {
+    const [completionData, emotionalData, meaningfulResponses, dropoffData] = await Promise.all([
+      this.database.getCompletionByDays(),
+      this.database.getEmotionalDynamics(),
+      this.database.getMeaningfulResponses(10),
+      this.database.getDropoffDays()
+    ]);
+
+    const html = `<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Аналитика для психолога</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+            line-height: 1.6;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container { max-width: 1400px; margin: 0 auto; }
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 20px;
+            border-radius: 15px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .nav-tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        .nav-tab {
+            background: rgba(255, 255, 255, 0.9);
+            color: #667eea;
+            padding: 12px 20px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+        .nav-tab:hover, .nav-tab.active {
+            background: #667eea;
+            color: white;
+            transform: translateY(-2px);
+        }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
+        .card {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+        }
+        .card h3 { color: #667eea; margin-bottom: 15px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { padding: 8px 12px; text-align: left; border-bottom: 1px solid #eee; }
+        th { background: #f8f9fa; font-weight: 600; }
+        .positive { color: #28a745; font-weight: bold; }
+        .negative { color: #dc3545; font-weight: bold; }
+        .warning { color: #ffc107; font-weight: bold; }
+        .insight {
+            background: #f0f8ff;
+            border-left: 4px solid #667eea;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 0 8px 8px 0;
+        }
+        .progress-bar {
+            background: #e9ecef;
+            border-radius: 10px;
+            height: 8px;
+            overflow: hidden;
+            margin: 5px 0;
+        }
+        .progress-fill {
+            background: linear-gradient(90deg, #28a745, #20c997);
+            height: 100%;
+            transition: width 0.3s ease;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📊 Аналитика для психолога</h1>
+            <p>Глубокий анализ данных курса самосострадания</p>
+        </div>
+
+        <div class="nav-tabs">
+            <a href="/dashboard" class="nav-tab">🏠 Главная</a>
+            <a href="/dashboard/analytics" class="nav-tab active">📊 Аналитика</a>
+            <a href="/dashboard/responses" class="nav-tab">💭 Ответы</a>
+            <a href="/dashboard/weekly-report" class="nav-tab">📄 Отчет</a>
+        </div>
+
+        <div class="grid">
+            <div class="card">
+                <h3>📈 Завершаемость по дням</h3>
+                <table>
+                    <tr><th>День</th><th>Начали</th><th>Завершили</th><th>%</th></tr>
+                    ${completionData.map(day => {
+                      const rate = day.completion_rate || 0;
+                      const rateClass = rate > 70 ? 'positive' : rate > 40 ? 'warning' : 'negative';
+                      return `
+                        <tr>
+                          <td>День ${day.day}</td>
+                          <td>${day.started_day}</td>
+                          <td>${day.completed_day}</td>
+                          <td><span class="${rateClass}">${rate}%</span></td>
+                        </tr>
+                      `;
+                    }).join('')}
+                </table>
+                <div class="insight">
+                    <strong>💡 Инсайт:</strong> ${completionData.length > 0 ? 
+                      `Самый сложный день: ${completionData.reduce((min, day) => 
+                        (day.completion_rate || 0) < (min.completion_rate || 100) ? day : min
+                      ).day}` : 'Недостаточно данных'}
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>💭 Эмоциональная карта</h3>
+                ${emotionalData.map(day => {
+                  const total = day.total_responses;
+                  const positive = day.positive;
+                  const negative = day.negative;
+                  const positiveRate = total > 0 ? Math.round((positive / total) * 100) : 0;
+                  
+                  return `
+                    <div style="margin: 15px 0;">
+                        <strong>День ${day.day}</strong> (${total} ответов)
+                        <div class="progress-bar">
+                            <div class="progress-fill" style="width: ${positiveRate}%"></div>
+                        </div>
+                        <small>😊 ${positive} позитивных • 😔 ${negative} негативных • ${positiveRate}% позитива</small>
+                    </div>
+                  `;
+                }).join('')}
+                <div class="insight">
+                    <strong>💡 Инсайт:</strong> ${emotionalData.length > 0 ? 
+                      `Самый позитивный день: ${emotionalData.reduce((max, day) => {
+                        const maxRate = max.total_responses > 0 ? (max.positive / max.total_responses) : 0;
+                        const dayRate = day.total_responses > 0 ? (day.positive / day.total_responses) : 0;
+                        return dayRate > maxRate ? day : max;
+                      }).day}` : 'Недостаточно данных'}
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>💎 Содержательные ответы</h3>
+                <div style="max-height: 400px; overflow-y: auto;">
+                    ${meaningfulResponses.map((resp, i) => `
+                        <div class="insight" style="margin: 10px 0;">
+                            <strong>${i+1}. ${resp.name || 'Аноним'} (День ${resp.day})</strong><br>
+                            <small style="color: #666;">${resp.question_type}</small><br>
+                            <em>"${resp.response_text.substring(0, 150)}${resp.response_text.length > 150 ? '...' : ''}"</em><br>
+                            <small style="color: #999;">${new Date(resp.created_at).toLocaleDateString('ru-RU')} • ${resp.text_length} символов</small>
+                        </div>
+                    `).join('')}
+                </div>
+                <a href="/dashboard/responses?filter=meaningful" style="color: #667eea; text-decoration: none;">
+                    📄 Посмотреть все содержательные ответы →
+                </a>
+            </div>
+
+            ${dropoffData.length > 0 ? `
+            <div class="card">
+                <h3>⚠️ Проблемные точки</h3>
+                <table>
+                    <tr><th>Переход</th><th>Было</th><th>Стало</th><th>Удержание</th></tr>
+                    ${dropoffData.map(drop => {
+                      const rate = drop.retention_rate || 0;
+                      const rateClass = rate > 70 ? 'positive' : rate > 50 ? 'warning' : 'negative';
+                      return `
+                        <tr>
+                          <td>День ${drop.day-1} → ${drop.day}</td>
+                          <td>${drop.users_prev_day}</td>
+                          <td>${drop.users_on_day}</td>
+                          <td><span class="${rateClass}">${rate}%</span></td>
+                        </tr>
+                      `;
+                    }).join('')}
+                </table>
+                <div class="insight">
+                    <strong>💡 Рекомендация:</strong> Пересмотрите контент дней с удержанием < 60%
+                </div>
+            </div>
+            ` : ''}
+        </div>
+
+        <div style="text-align: center; margin-top: 30px;">
+            <p style="color: rgba(255,255,255,0.8);">
+                🕐 Обновлено: ${new Date().toLocaleString('ru-RU')} • 
+                <a href="/dashboard/analytics" style="color: rgba(255,255,255,0.9);">🔄 Обновить</a>
+            </p>
+        </div>
+    </div>
+</body>
+</html>`;
+
+    res.send(html);
+  } catch (error) {
+    console.error('❌ Ошибка в analytics:', error);
+    res.status(500).send('Ошибка загрузки аналитики: ' + error);
+  }
+});
+
+// Детальный просмотр ответов пользователей
+this.app.get('/dashboard/responses', authenticate, async (req, res) => {
+  try {
+    const { day, keyword, filter } = req.query;
+    
+    let responses;
+    if (filter === 'meaningful') {
+      responses = await this.database.getMeaningfulResponses(100);
+    } else {
+      responses = await this.database.searchResponses({
+        day: day ? parseInt(day as string) : undefined,
+        keyword: keyword as string,
+        minLength: 10,
+        limit: 100
+      });
+    }
+
+    const html = `<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ответы пользователей</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+            padding: 20px;
+            min-height: 100vh;
+        }
+        .container { max-width: 1200px; margin: 0 auto; }
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 20px;
+            border-radius: 15px;
+            margin-bottom: 20px;
+        }
+        .nav-tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        .nav-tab {
+            background: rgba(255, 255, 255, 0.9);
+            color: #667eea;
+            padding: 12px 20px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+        .nav-tab:hover, .nav-tab.active {
+            background: #667eea;
+            color: white;
+        }
+        .filters {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 20px;
+            border-radius: 15px;
+            margin-bottom: 20px;
+        }
+        .filter-form {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .filter-form input, .filter-form select {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+        .filter-form button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 500;
+        }
+        .response-item {
+            background: rgba(255, 255, 255, 0.95);
+            margin: 15px 0;
+            padding: 20px;
+            border-radius: 12px;
+            border-left: 4px solid #667eea;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        }
+        .response-header {
+            display: flex;
+            justify-content: between;
+            align-items: center;
+            margin-bottom: 10px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .response-meta {
+            color: #666;
+            font-size: 14px;
+        }
+        .response-day {
+            background: #667eea;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .response-text {
+            font-size: 16px;
+            line-height: 1.6;
+            margin: 15px 0;
+        }
+        .stats-bar {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 15px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+        .export-btn {
+            background: #28a745;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 6px;
+            text-decoration: none;
+            font-weight: 500;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>💭 Ответы пользователей</h1>
+            <p>Детальный просмотр и анализ ответов</p>
+        </div>
+
+        <div class="nav-tabs">
+            <a href="/dashboard" class="nav-tab">🏠 Главная</a>
+            <a href="/dashboard/analytics" class="nav-tab">📊 Аналитика</a>
+            <a href="/dashboard/responses" class="nav-tab active">💭 Ответы</a>
+            <a href="/dashboard/weekly-report" class="nav-tab">📄 Отчет</a>
+        </div>
+
+        <div class="filters">
+            <h3>🔍 Фильтры</h3>
+            <form class="filter-form" method="GET">
+                <select name="day">
+                    <option value="">Все дни</option>
+                    ${[1,2,3,4,5,6,7].map(d => 
+                      `<option value="${d}" ${Number(day) === d ? 'selected' : ''}>День ${d}</option>`
+                    ).join('')}
+                </select>
+                
+                <input type="text" name="keyword" placeholder="Поиск по тексту..." 
+                       value="${keyword || ''}" />
+                
+                <select name="filter">
+                    <option value="">Все ответы</option>
+                    <option value="meaningful" ${filter === 'meaningful' ? 'selected' : ''}>
+                        Только содержательные
+                    </option>
+                </select>
+                
+                <button type="submit">🔍 Найти</button>
+                <a href="/dashboard/responses" style="margin-left: 10px; color: #667eea; text-decoration: none;">✕ Сбросить</a>
+            </form>
+        </div>
+
+        <div class="stats-bar">
+            <div>
+                <strong>📊 Найдено: ${responses.length} ответов</strong>
+                ${day ? `| День: ${day}` : ''}
+                ${keyword ? `| Поиск: "${keyword}"` : ''}
+            </div>
+            <div>
+                <a href="/dashboard/export/text-responses?${new URLSearchParams(req.query as any)}" class="export-btn">
+                    📥 Скачать CSV
+                </a>
+            </div>
+        </div>
+
+        <div>
+            ${responses.map((resp, i) => `
+                <div class="response-item">
+                    <div class="response-header">
+                        <div>
+                            <span class="response-day">День ${resp.day}</span>
+                            <strong style="margin-left: 10px;">${resp.name || 'Аноним'}</strong>
+                        </div>
+                        <div class="response-meta">
+                            ${new Date(resp.created_at).toLocaleDateString('ru-RU')} в 
+                            ${new Date(resp.created_at).toLocaleTimeString('ru-RU', {hour: '2-digit', minute: '2-digit'})}
+                        </div>
+                    </div>
+                    
+                    <div style="font-size: 14px; color: #666; margin-bottom: 10px;">
+                        📝 ${resp.question_type}
+                    </div>
+                    
+                    <div class="response-text">
+                        "${resp.response_text}"
+                    </div>
+                    
+                    <div style="font-size: 12px; color: #999;">
+                        📏 ${resp.response_text.length} символов
+                        ${resp.text_length && resp.text_length > 100 ? ' • 💎 Содержательный ответ' : ''}
+                    </div>
+                </div>
+            `).join('')}
+        </div>
+
+        ${responses.length === 0 ? `
+            <div style="text-align: center; padding: 40px; color: rgba(255,255,255,0.8);">
+                <h3>🔍 Ответы не найдены</h3>
+                <p>Попробуйте изменить фильтры поиска</p>
+            </div>
+        ` : ''}
+
+        <div style="text-align: center; margin-top: 30px;">
+            <p style="color: rgba(255,255,255,0.8);">
+                💡 <strong>Совет:</strong> Используйте фильтры для поиска конкретных тем или эмоций
+            </p>
+        </div>
+    </div>
+</body>
+</html>`;
+
+    res.send(html);
+  } catch (error) {
+    console.error('❌ Ошибка в responses:', error);
+    res.status(500).send('Ошибка загрузки ответов: ' + error);
+  }
+});
+
+// Экспорт отфильтрованных ответов
+this.app.get('/dashboard/export/text-responses', authenticate, async (req, res) => {
+  try {
+    const { day, keyword, filter } = req.query;
+    
+    let responses;
+    if (filter === 'meaningful') {
+      responses = await this.database.getMeaningfulResponses(1000);
+    } else {
+      responses = await this.database.searchResponses({
+        day: day ? parseInt(day as string) : undefined,
+        keyword: keyword as string,
+        minLength: 5,
+        limit: 1000
+      });
+    }
+
+    // Создаем CSV
+    const headers = ['Имя', 'День', 'Вопрос', 'Ответ', 'Длина', 'Дата'];
+    let csv = headers.join(',') + '\n';
+    
+    responses.forEach(row => {
+      const csvRow = [
+        `"${row.name || 'Аноним'}"`,
+        row.day,
+        `"${row.question_type.replace(/"/g, '""')}"`,
+        `"${row.response_text.replace(/"/g, '""')}"`,
+        row.response_text.length,
+        `"${new Date(row.created_at).toLocaleDateString('ru-RU')}"`
+      ];
+      csv += csvRow.join(',') + '\n';
+    });
+    
+    const filename = `responses-${day || 'all'}-${Date.now()}.csv`;
+    
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename=${filename}`);
+    res.send('\ufeff' + csv);
+    
+  } catch (error) {
+    console.error('❌ Ошибка экспорта:', error);
+    res.status(500).send('Ошибка экспорта: ' + error);
+  }
+});
+
+// Еженедельный отчет
+this.app.get('/dashboard/weekly-report', authenticate, async (req, res) => {
+  try {
+    const weekAgo = new Date();
+    weekAgo.setDate(weekAgo.getDate() - 7);
+    
+    const [stats, meaningfulResponses, alerts] = await Promise.all([
+      this.database.getStats(),
+      this.database.getMeaningfulResponses(5),
+      this.database.getAlerts()
+    ]);
+    
+    const unhandledAlerts = alerts.filter(a => !a.handled).length;
+    
+    const html = `<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Еженедельный отчет</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: white;
+            color: #333;
+            line-height: 1.6;
+            padding: 20px;
+        }
+        .container { max-width: 800px; margin: 0 auto; }
+        .header {
+            text-align: center;
+            border-bottom: 3px solid #667eea;
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+        }
+        .section {
+            margin: 30px 0;
+            padding: 20px;
+            border: 1px solid #eee;
+            border-radius: 8px;
+        }
+        .positive { background: #e8f5e8; border-left: 4px solid #28a745; }
+        .warning { background: #fff3cd; border-left: 4px solid #ffc107; }
+        .critical { background: #f8d7da; border-left: 4px solid #dc3545; }
+        .print-btn {
+            background: #667eea;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 500;
+            margin: 10px 5px;
+        }
+        @media print {
+            .no-print { display: none; }
+            body { background: white; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📊 Еженедельный отчет психолога</h1>
+            <p>Период: ${new Date(Date.now() - 7*24*60*60*1000).toLocaleDateString('ru-RU')} - ${new Date().toLocaleDateString('ru-RU')}</p>
+        </div>
+        
+        <div class="section positive">
+            <h2>📈 Основная статистика</h2>
+            <ul>
+                <li><strong>Всего пользователей:</strong> ${stats.totalUsers}</li>
+                <li><strong>Активных сегодня:</strong> ${stats.activeToday}</li>
+                <li><strong>Завершили курс:</strong> ${stats.completedCourse}</li>
+                <li><strong>Конверсия в завершение:</strong> ${Math.round((stats.completedCourse / stats.totalUsers) * 100)}%</li>
+            </ul>
+        </div>
+
+        ${unhandledAlerts > 0 ? `
+        <div class="section critical">
+            <h2>🚨 Сигналы безопасности</h2>
+            <p><strong>Необработанных алертов:</strong> ${unhandledAlerts}</p>
+            <p><strong>Всего за период:</strong> ${alerts.length}</p>
+            <p><strong>Требует внимания:</strong> Проверьте раздел алертов в дашборде</p>
+        </div>
+        ` : ''}
+
+        <div class="section">
+            <h2>💎 Лучшие инсайты недели</h2>
+            ${meaningfulResponses.map((insight, i) => `
+                <div style="margin: 15px 0; padding: 15px; background: #f8f9fa; border-radius: 6px;">
+                    <strong>${i+1}. ${insight.name || 'Аноним'} (День ${insight.day})</strong><br>
+                    <small style="color: #666;">${insight.question_type}</small><br>
+                    <em>"${insight.response_text.substring(0, 200)}${insight.response_text.length > 200 ? '...' : ''}"</em>
+                </div>
+            `).join('')}
+        </div>
+
+        <div class="section">
+            <h2>📋 Выводы и рекомендации</h2>
+            <h3>✅ Что работает хорошо:</h3>
+            <ul>
+                <li>Пользователи оставляют содержательные ответы</li>
+                <li>Система безопасности функционирует</li>
+                <li>Курс показывает стабильные результаты</li>
+            </ul>
+            
+            <h3>🔧 Области для улучшения:</h3>
+            <ul>
+                <li>Проанализировать точки отсева пользователей</li>
+                <li>Изучить качественную обратную связь</li>
+                <li>Рассмотреть персонализацию подхода</li>
+            </ul>
+        </div>
+
+        <div class="no-print" style="text-align: center; margin: 30px 0;">
+            <button class="print-btn" onclick="window.print()">🖨️ Печать отчета</button>
+            <button class="print-btn" onclick="window.location.href='/dashboard/analytics'" style="background: #28a745;">
+                📊 Подробная аналитика
+            </button>
+        </div>
+    </div>
+</body>
+</html>`;
+
+    res.send(html);
+  } catch (error) {
+    console.error('❌ Ошибка еженедельного отчета:', error);
+    res.status(500).send('Ошибка генерации отчета: ' + error);
+  }
+});
+
+// Обновляем главную страницу дашборда с ссылками на новые разделы
+this.app.get('/dashboard', authenticate, async (req, res) => {
+  try {
+    const stats = await this.database.getStats();
+    const alerts = await this.database.getAlerts();
+    const unhandledAlerts = alerts.filter((alert: any) => !alert.handled).length;
+    
+    const html = `<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Дашборд бота "Забота о себе"</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+            line-height: 1.6;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container { 
+            max-width: 1200px; 
+            margin: 0 auto;
+        }
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            color: #667eea;
+            padding: 30px;
+            text-align: center;
+            margin-bottom: 30px;
+            border-radius: 15px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+        }
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .nav-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .nav-card {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 25px;
+            border-radius: 15px;
+            text-align: center;
+            text-decoration: none;
+            color: #333;
+            transition: all 0.3s ease;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+        }
+        .nav-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 12px 40px rgba(102, 126, 234, 0.2);
+        }
+        .nav-card h3 {
+            color: #667eea;
+            margin-bottom: 10px;
+            font-size: 1.3em;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .stat-card {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease;
+        }
+        .stat-card:hover {
+            transform: translateY(-5px);
+        }
+        .stat-card h3 {
+            color: #667eea;
+            margin-bottom: 15px;
+            font-size: 1.2em;
+        }
+        .big-number {
+            font-size: 3em;
+            font-weight: bold;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin: 15px 0;
+        }
+        .alert-badge {
+            background: #ff6b6b;
+            color: white;
+            border-radius: 50%;
+            padding: 4px 8px;
+            font-size: 0.8em;
+            margin-left: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Дашборд бота "Забота о себе"</h1>
+            <p>Аналитика и управление курсом самосострадания</p>
+        </div>
+
+        <div class="nav-grid">
+            <a href="/dashboard/analytics" class="nav-card">
+                <h3>📊 Аналитика</h3>
+                <p>Глубокий анализ данных, графики завершаемости и эмоциональная карта курса</p>
+            </a>
+            
+            <a href="/dashboard/responses" class="nav-card">
+                <h3>💭 Ответы пользователей</h3>
+                <p>Просмотр, поиск и фильтрация всех ответов участников курса</p>
+            </a>
+            
+            <a href="/dashboard/weekly-report" class="nav-card">
+                <h3>📄 Еженедельный отчет</h3>
+                <p>Готовый отчет для печати с основными инсайтами и рекомендациями</p>
+            </a>
+            
+            <a href="/dashboard/export/responses" class="nav-card">
+                <h3>📥 Экспорт данных</h3>
+                <p>Скачать все данные в CSV для анализа в Excel или других программах</p>
+            </a>
+        </div>
+
+        <div class="stats-grid">
+            <div class="stat-card">
+                <h3>👥 Пользователи</h3>
+                <div class="big-number">${stats.totalUsers}</div>
+                <p>Всего зарегистрировано</p>
+            </div>
+            
+            <div class="stat-card">
+                <h3>📈 Активность сегодня</h3>
+                <div class="big-number">${stats.activeToday}</div>
+                <p>Активных пользователей</p>
+            </div>
+            
+            <div class="stat-card">
+                <h3>🎯 Завершили курс</h3>
+                <div class="big-number">${stats.completedCourse}</div>
+                <p>Прошли все 7 дней</p>
+            </div>
+
+            <div class="stat-card">
+                <h3>🚨 Алерты ${unhandledAlerts > 0 ? `<span class="alert-badge">${unhandledAlerts}</span>` : ''}</h3>
+                <div class="big-number">${alerts.length}</div>
+                <p>Всего сигналов безопасности</p>
+            </div>
+        </div>
+
+        <div style="text-align: center; color: rgba(255, 255, 255, 0.8); margin-top: 30px;">
+            <p>🕐 Последнее обновление: ${new Date().toLocaleString('ru-RU')}</p>
+            <p style="margin-top: 10px;">
+                💡 <strong>Новое:</strong> Теперь доступен детальный анализ данных и визуальные отчеты!
+            </p>
+        </div>
+    </div>
+</body>
+</html>`;
+    res.send(html);
+  } catch (error) {
+    res.status(500).send(`Ошибка: ${error}`);
+  }
+});
     this.app.get('/', (req, res) => res.redirect('/dashboard'));
   }
 
