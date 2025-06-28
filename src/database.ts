@@ -442,19 +442,19 @@ export class Database {
     return results;
   }
 
+  // Получить все ответы пользователей (ИСПРАВЛЕНО ДЛЯ POSTGRESQL)
   async getAllResponses(): Promise<any[]> {
     const query = `
       SELECT 
-        u.name as "Имя",
-        u.telegram_id as "Telegram ID",
-        r.day as "День",
-        r.question_type as "Тип вопроса",
-        r.response_text as "Ответ",
-        r.response_type as "Тип ответа",
-        r.created_at as "Дата"
+        r.user_id,
+        u.name as first_name,
+        u.telegram_id as username,
+        r.day,
+        r.question_type as question,
+        r.response_text as answer,
+        r.created_at
       FROM responses r
       JOIN users u ON r.user_id = u.id
-      WHERE r.response_type = 'text' AND r.response_text IS NOT NULL
       ORDER BY r.created_at DESC
     `;
     
@@ -462,18 +462,18 @@ export class Database {
     return result.rows;
   }
 
+  // Получить всех пользователей (ИСПРАВЛЕНО ДЛЯ POSTGRESQL)
   async getAllUsers(): Promise<any[]> {
     const query = `
       SELECT 
-        name as "Имя",
-        telegram_id as "Telegram ID", 
-        current_day as "Текущий день",
-        personalization_type as "Тип персонализации",
-        course_completed as "Курс завершен",
-        is_paused as "На паузе",
-        created_at as "Дата регистрации",
-        updated_at as "Последняя активность"
-      FROM users 
+        id,
+        telegram_id,
+        name as first_name,
+        telegram_id as username,
+        current_day,
+        created_at,
+        updated_at as last_activity
+      FROM users
       ORDER BY created_at DESC
     `;
     
@@ -481,20 +481,29 @@ export class Database {
     return result.rows;
   }
 
+  // Получить ответы конкретного пользователя (ИСПРАВЛЕНО ДЛЯ POSTGRESQL)
+  async getUserResponses(telegramId: number): Promise<any[]> {
+    const query = `
+      SELECT * FROM responses r
+      JOIN users u ON r.user_id = u.id
+      WHERE u.telegram_id = $1
+      ORDER BY r.day ASC, r.created_at ASC
+    `;
+    
+    const result = await this.pool.query(query, [telegramId]);
+    return result.rows;
+  }
+
+  // Получить все алерты (ИСПРАВЛЕНО ДЛЯ POSTGRESQL)
   async getAlerts(): Promise<any[]> {
     const query = `
       SELECT 
-        a.id,
-        u.name,
-        u.telegram_id,
-        a.trigger_word,
-        a.message,
-        a.handled,
-        a.created_at
+        a.*,
+        u.name as first_name,
+        u.telegram_id as username
       FROM alerts a
       JOIN users u ON a.user_id = u.id
       ORDER BY a.created_at DESC
-      LIMIT 50
     `;
     
     const result = await this.pool.query(query);
@@ -669,6 +678,62 @@ export class Database {
 
   async close(): Promise<void> {
     await this.pool.end();
+  }
+
+  // === ДОПОЛНИТЕЛЬНЫЕ МЕТОДЫ ===
+
+  // Получить пользователя по userId (не telegramId)
+  async getUserById(userId: number): Promise<any> {
+    const query = 'SELECT * FROM users WHERE id = $1';
+    const result = await this.pool.query(query, [userId]);
+    return result.rows[0];
+  }
+
+  // Обновить активность пользователя
+  async updateUserActivity(userId: number): Promise<void> {
+    const query = 'UPDATE users SET updated_at = NOW() WHERE id = $1';
+    await this.pool.query(query, [userId]);
+  }
+
+  // Создать алерт с типом (расширенная версия)
+  async createAlertWithType(userId: number, type: string, message: string): Promise<void> {
+    const query = `
+      INSERT INTO alerts (user_id, type, message, created_at, handled)
+      VALUES ($1, $2, $3, NOW(), false)
+    `;
+    await this.pool.query(query, [userId, type, message]);
+  }
+
+  // Если нужна синхронная версия close для совместимости
+  closeSync(): void {
+    // Для PostgreSQL pool это не имеет смысла, но для совместимости:
+    this.pool.end(() => {
+      console.log('Pool закрыт');
+    });
+  }
+
+  // Дополнительно: обновим структуру таблицы alerts если нужно добавить поле type
+  async updateAlertsTableStructure(): Promise<void> {
+    try {
+      // Проверяем, есть ли колонка type
+      const checkColumn = `
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name = 'alerts' AND column_name = 'type'
+      `;
+      const result = await this.pool.query(checkColumn);
+      
+      if (result.rows.length === 0) {
+        // Добавляем колонку type если её нет
+        await this.pool.query(`
+          ALTER TABLE alerts 
+          ADD COLUMN IF NOT EXISTS type VARCHAR(50) DEFAULT 'general'
+        `);
+        console.log('✅ Добавлена колонка type в таблицу alerts');
+      }
+    } catch (error) {
+      console.error('Ошибка при обновлении структуры alerts:', error);
+    }
   }
 }
 

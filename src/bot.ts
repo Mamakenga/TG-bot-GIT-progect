@@ -353,6 +353,15 @@ private setupAdminRoutes(): void {
       res.status(401).send('Неверные данные');
     }
   };
+  // Функция для экранирования CSV
+const escapeCSV = (value: any) => {
+  if (value === null || value === undefined) return '';
+  const str = String(value);
+  if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+    return `"${str.replace(/"/g, '""')}"`;
+  }
+  return str;
+};
 
   // Еженедельный отчет
   this.app.get('/dashboard/weekly-report', authenticate, async (req, res) => {
@@ -773,6 +782,140 @@ private setupAdminRoutes(): void {
 
   // Редирект с корня на дашборд
   this.app.get('/', (req, res) => res.redirect('/dashboard'));
+// Добавьте эти роуты в метод setupAdminRoutes() после основных роутов дашборда
+
+// Экспорт ответов пользователей в CSV
+this.app.get('/dashboard/export/responses', authenticate, async (req, res) => {
+  try {
+    console.log('📥 Запрос на экспорт ответов');
+    
+    // Получаем все ответы из базы данных
+    const responses = await this.database.getAllResponses();
+    
+    // Создаем CSV контент
+    let csv = '\ufeff'; // BOM для корректного отображения кириллицы в Excel
+    csv += 'ID пользователя,Имя,Username,День,Вопрос,Ответ,Дата и время\n';
+    
+    responses.forEach((response: any) => {
+  csv += [
+    escapeCSV(response.user_id), // вместо userId
+    escapeCSV(response.first_name), // вместо firstName
+    escapeCSV(response.username || 'Не указан'),
+    escapeCSV(response.day),
+    escapeCSV(response.question),
+    escapeCSV(response.answer),
+    escapeCSV(new Date(response.created_at).toLocaleString('ru-RU')) // вместо timestamp
+  ].join(',') + '\n';
+});
+    
+    // Устанавливаем заголовки для скачивания файла
+    const filename = `responses_${new Date().toISOString().split('T')[0]}.csv`;
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    
+    console.log(`✅ Экспортировано ${responses.length} ответов`);
+    res.send(csv);
+    
+  } catch (error) {
+    console.error('❌ Ошибка экспорта ответов:', error);
+    res.status(500).send(`Ошибка экспорта: ${error}`);
+  }
+});
+
+// Экспорт данных пользователей в CSV
+this.app.get('/dashboard/export/users', authenticate, async (req, res) => {
+  try {
+    console.log('📥 Запрос на экспорт пользователей');
+    
+    // Получаем всех пользователей из базы данных
+    const users = await this.database.getAllUsers();
+    
+    // Создаем CSV контент
+    let csv = '\ufeff'; // BOM для корректного отображения кириллицы в Excel
+    csv += 'ID,Имя,Username,Текущий день,Дата регистрации,Последняя активность,Завершил курс,Количество ответов\n';
+    
+    for (const user of users) {
+  const userResponses = await this.database.getUserResponses(user.telegram_id); // используем telegram_id
+  const responseCount = userResponses.length;
+  
+  csv += [
+    escapeCSV(user.id), // id пользователя в БД
+    escapeCSV(user.first_name), // вместо firstName
+    escapeCSV(user.username || 'Не указан'),
+    escapeCSV(user.current_day), // вместо currentDay
+    escapeCSV(new Date(user.created_at).toLocaleString('ru-RU')), // вместо createdAt
+    escapeCSV(new Date(user.last_activity).toLocaleString('ru-RU')), // вместо lastActivity
+    escapeCSV(user.current_day >= 7 ? 'Да' : 'Нет'),
+    escapeCSV(responseCount)
+  ].join(',') + '\n';
+}
+    
+    // Устанавливаем заголовки для скачивания файла
+    const filename = `users_${new Date().toISOString().split('T')[0]}.csv`;
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    
+    console.log(`✅ Экспортировано ${users.length} пользователей`);
+    res.send(csv);
+    
+  } catch (error) {
+    console.error('❌ Ошибка экспорта пользователей:', error);
+    res.status(500).send(`Ошибка экспорта: ${error}`);
+  }
+});
+
+// Экспорт алертов в CSV
+this.app.get('/dashboard/export/alerts', authenticate, async (req, res) => {
+  try {
+    console.log('📥 Запрос на экспорт алертов');
+    
+    const alerts = await this.database.getAlerts();
+    
+    // Создаем CSV контент
+    let csv = '\ufeff'; // BOM для корректного отображения кириллицы в Excel
+    csv += 'ID пользователя,Имя,Username,Тип алерта,Сообщение,Дата создания,Обработан,Дата обработки,Комментарий\n';
+    
+    alerts.forEach((alert: any) => {
+  csv += [
+    escapeCSV(alert.user_id), // вместо userId
+    escapeCSV(alert.first_name), // нужно будет джойнить с users
+    escapeCSV(alert.username || 'Не указан'),
+    escapeCSV(alert.type || alert.trigger_word || 'general'), // type или trigger_word
+    escapeCSV(alert.message),
+    escapeCSV(new Date(alert.created_at).toLocaleString('ru-RU')), // вместо createdAt
+    escapeCSV(alert.handled ? 'Да' : 'Нет'),
+    escapeCSV(alert.handled_at ? new Date(alert.handled_at).toLocaleString('ru-RU') : ''), // вместо handledAt
+    escapeCSV(alert.comment || '')
+  ].join(',') + '\n';
+});
+ 
+    // Устанавливаем заголовки для скачивания файла
+    const filename = `alerts_${new Date().toISOString().split('T')[0]}.csv`;
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    
+    console.log(`✅ Экспортировано ${alerts.length} алертов`);
+    res.send(csv);
+    
+  } catch (error) {
+    console.error('❌ Ошибка экспорта алертов:', error);
+    res.status(500).send(`Ошибка экспорта: ${error}`);
+  }
+});
+
+// Тестовый роут для проверки работы экспорта
+this.app.get('/dashboard/test-export', authenticate, async (req, res) => {
+  try {
+    // Простой тестовый CSV
+    const csv = '\ufeffТест,Проверка,Кириллица\n1,2,Привет\n3,4,Мир';
+    
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="test.csv"');
+    res.send(csv);
+  } catch (error) {
+    res.status(500).send(`Ошибка: ${error}`);
+  }
+});
 }
 
   // === ОБРАБОТЧИКИ КОМАНД ===
@@ -1507,6 +1650,7 @@ private setupAdminRoutes(): void {
       console.error('❌ Ошибка статистики:', error);
     }
   }
+
 }
 
 // Запуск бота
