@@ -7,7 +7,7 @@ import cron from 'node-cron';
 import { config } from './config';
 import { Database, DbUser } from './database';
 import { courseContent, getDayContent } from './course-logic';
-import { checkForAlerts, sendAlert } from './utils';
+import { checkForAlerts, sendAlert, createCSV } from './utils';
 import { ReminderType } from './types';
 
 class SelfCareBot {
@@ -160,24 +160,6 @@ class SelfCareBot {
         process.exit(1);
       }, 1000);
     });
-  }
-
-  // === МЕТОД ДЛЯ СОЗДАНИЯ CSV ===
-  private createCSV(data: any[], headers: string[]): string {
-    let csv = headers.join(',') + '\n';
-    
-    for (const row of data) {
-      const values = headers.map(header => {
-        const value = row[header] || '';
-        if (typeof value === 'string' && (value.includes(',') || value.includes('"') || value.includes('\n'))) {
-          return `"${value.replace(/"/g, '""')}"`;
-        }
-        return value;
-      });
-      csv += values.join(',') + '\n';
-    }
-    
-    return csv;
   }
 
   // === СИСТЕМА НАПОМИНАНИЙ ===
@@ -513,6 +495,7 @@ class SelfCareBot {
             <div style="margin-top: 15px;">
                 <a href="/dashboard/export/responses" class="action-btn">📄 Ответы пользователей (CSV)</a>
                 <a href="/dashboard/export/users" class="action-btn">👥 Список пользователей (CSV)</a>
+                <a href="/dashboard/alerts" class="action-btn">🚨 Алерты безопасности</a>
             </div>
         </div>
 
@@ -527,12 +510,74 @@ class SelfCareBot {
         res.status(500).send(`Ошибка: ${error}`);
       }
     });
+// Страница алертов безопасности
+    this.app.get('/dashboard/alerts', authenticate, async (req, res) => {
+      try {
+        const alerts = await this.database.getAlerts();
+        
+        const alertsHtml = `<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Алерты безопасности</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        .header { background: #dc3545; color: white; padding: 20px; border-radius: 10px; margin-bottom: 20px; }
+        .alert-card { background: white; margin: 10px 0; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .alert-new { border-left: 5px solid #dc3545; }
+        .alert-handled { border-left: 5px solid #28a745; opacity: 0.7; }
+        .back-btn { background: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; }
+        table { width: 100%; border-collapse: collapse; background: white; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background-color: #f8f9fa; }
+        .message-preview { max-width: 300px; word-wrap: break-word; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚨 Алерты безопасности</h1>
+            <p>Сигналы, требующие внимания специалистов</p>
+            <a href="/dashboard" class="back-btn">← Назад к дашборду</a>
+        </div>
+        
+        ${alerts.length === 0 ? '<p>Алертов пока нет</p>' : `
+        <table>
+            <tr>
+                <th>Дата</th>
+                <th>Пользователь</th>
+                <th>Триггер</th>
+                <th>Сообщение</th>
+                <th>Статус</th>
+            </tr>
+            ${alerts.map(alert => `
+            <tr class="${alert.handled ? 'alert-handled' : 'alert-new'}">
+                <td>${new Date(alert.created_at).toLocaleString('ru-RU')}</td>
+                <td>${alert.name || 'Аноним'}<br><small>${alert.telegram_id}</small></td>
+                <td><strong>${alert.trigger_word}</strong></td>
+                <td class="message-preview">${alert.message.substring(0, 100)}${alert.message.length > 100 ? '...' : ''}</td>
+                <td>${alert.handled ? '✅ Обработан' : '🔴 Новый'}</td>
+            </tr>
+            `).join('')}
+        </table>
+        `}
+    </div>
+</body>
+</html>`;
+
+        res.send(alertsHtml);
+      } catch (error) {
+        res.status(500).send('Ошибка: ' + error);
+      }
+    });
 
     // ЭКСПОРТ CSV
     this.app.get('/dashboard/export/responses', authenticate, async (req, res) => {
       try {
         const responses = await this.database.getAllResponses();
-        const csv = this.createCSV(responses, ['Имя', 'Telegram ID', 'День', 'Тип вопроса', 'Ответ', 'Дата']);
+        const csv = createCSV(responses, ['Имя', 'Telegram ID', 'День', 'Тип вопроса', 'Ответ', 'Дата']);
         
         res.setHeader('Content-Type', 'text/csv; charset=utf-8');
         res.setHeader('Content-Disposition', 'attachment; filename=user-responses.csv');
@@ -546,7 +591,7 @@ class SelfCareBot {
     this.app.get('/dashboard/export/users', authenticate, async (req, res) => {
       try {
         const users = await this.database.getAllUsers();
-        const csv = this.createCSV(users, ['Имя', 'Telegram ID', 'Текущий день', 'Курс завершен', 'Дата регистрации']);
+        const csv = createCSV(users, ['Имя', 'Telegram ID', 'Текущий день', 'Курс завершен', 'Дата регистрации']);
         
         res.setHeader('Content-Type', 'text/csv; charset=utf-8');
         res.setHeader('Content-Disposition', 'attachment; filename=users.csv');
@@ -556,8 +601,6 @@ class SelfCareBot {
         res.status(500).send('Ошибка экспорта: ' + error);
       }
     });
-// Добавь эти роуты в метод setupAdminRoutes() ПЕРЕД строкой this.app.get('/', ...)
-
 // === НОВАЯ АНАЛИТИКА ДЛЯ ПСИХОЛОГА ===
 
 // Главная страница аналитики  
