@@ -217,37 +217,40 @@ this.bot.onText(/\/testday (\d+)/, this.handleTestDay.bind(this));
     console.log('   🌙 20:00 - Вечерние рефлексии');
   }
 
-  private async sendMorningMessages(): Promise<void> {
-    try {
-      const activeUsers = await this.database.getActiveUsers();
-      console.log(`📊 Найдено ${activeUsers.length} активных пользователей`);
+  // ✅ ИСПРАВЛЕНО: Утром ТОЛЬКО текст, БЕЗ кнопок
+// ✅ ИСПРАВЛЕНО: Утром ТОЛЬКО текст, БЕЗ кнопок
+private async sendMorningMessages(): Promise<void> {
+  try {
+    const activeUsers = await this.database.getActiveUsers();
+    console.log(`📊 Найдено ${activeUsers.length} активных пользователей`);
 
-      for (const user of activeUsers) {
-        try {
-          if (user.course_completed || (user.current_day || 1) > 7) {
-            continue;
-          }
-
-          const currentDay = user.current_day || 1;
-          const dayContent = getDayContent(currentDay);
-          if (!dayContent) {
-            console.log(`⚠️ Контент для дня ${currentDay} не найден`);
-            continue;
-          }
-
-          await this.bot.sendMessage(user.telegram_id, dayContent.morningMessage);
-
-          console.log(`✅ Утреннее сообщение отправлено пользователю ${user.telegram_id} (день ${currentDay})`);
-          await new Promise(resolve => setTimeout(resolve, 100));
-
-        } catch (userError) {
-          console.error(`❌ Ошибка отправки утреннего сообщения пользователю ${user.telegram_id}:`, userError);
+    for (const user of activeUsers) {
+      try {
+        if (user.course_completed || (user.current_day || 1) > 7) {
+          continue;
         }
+
+        const currentDay = user.current_day || 1;
+        const dayContent = getDayContent(currentDay);
+        if (!dayContent) {
+          console.log(`⚠️ Контент для дня ${currentDay} не найден`);
+          continue;
+        }
+
+        // ✅ ТОЛЬКО ТЕКСТ УТРОМ, БЕЗ КНОПОК
+        await this.bot.sendMessage(user.telegram_id, dayContent.morningMessage);
+
+        console.log(`✅ Утреннее сообщение отправлено пользователю ${user.telegram_id} (день ${currentDay})`);
+        await new Promise(resolve => setTimeout(resolve, 100));
+
+      } catch (userError) {
+        console.error(`❌ Ошибка отправки утреннего сообщения пользователю ${user.telegram_id}:`, userError);
       }
-    } catch (error) {
-      console.error('❌ Ошибка в sendMorningMessages:', error);
     }
+  } catch (error) {
+    console.error('❌ Ошибка в sendMorningMessages:', error);
   }
+}
 
   private async sendExerciseMessages(): Promise<void> {
     try {
@@ -317,38 +320,41 @@ this.bot.onText(/\/testday (\d+)/, this.handleTestDay.bind(this));
     }
   }
 
-  private async sendEveningMessages(): Promise<void> {
-    try {
-      const activeUsers = await this.database.getActiveUsers();
+  // ✅ ИСПРАВЛЕНО: Вечером кнопки ВЕРТИКАЛЬНО
+// ✅ ИСПРАВЛЕНО: Вечером кнопки ВЕРТИКАЛЬНО
+private async sendEveningMessages(): Promise<void> {
+  try {
+    const activeUsers = await this.database.getActiveUsers();
 
-      for (const user of activeUsers) {
-        try {
-          if (user.course_completed || (user.current_day || 1) > 7) continue;
+    for (const user of activeUsers) {
+      try {
+        if (user.course_completed || (user.current_day || 1) > 7) continue;
 
-          const currentDay = user.current_day || 1;
-          const dayContent = getDayContent(currentDay);
-          if (!dayContent) continue;
+        const currentDay = user.current_day || 1;
+        const dayContent = getDayContent(currentDay);
+        if (!dayContent) continue;
 
-          await this.bot.sendMessage(user.telegram_id, dayContent.eveningMessage, {
-  reply_markup: dayContent.options ? {
-    inline_keyboard: dayContent.options.map((option, index) => [{
-      text: option.text,
-      callback_data: `day_${currentDay}_evening_${index}`
-    }])
-  } : undefined
-});
+        // ✅ КНОПКИ ВЕРТИКАЛЬНО (каждая на отдельной строке)
+        await this.bot.sendMessage(user.telegram_id, dayContent.eveningMessage, {
+          reply_markup: dayContent.options ? {
+            inline_keyboard: dayContent.options.map((option, index) => [{
+              text: option.text,
+              callback_data: `day_${currentDay}_evening_${index}`
+            }])
+          } : undefined
+        });
 
-          console.log(`✅ Вечернее сообщение отправлено пользователю ${user.telegram_id} (день ${currentDay})`);
-          await new Promise(resolve => setTimeout(resolve, 100));
+        console.log(`✅ Вечернее сообщение отправлено пользователю ${user.telegram_id} (день ${currentDay})`);
+        await new Promise(resolve => setTimeout(resolve, 100));
 
-        } catch (userError) {
-          console.error(`❌ Ошибка отправки вечернего сообщения пользователю ${user.telegram_id}:`, userError);
-        }
+      } catch (userError) {
+        console.error(`❌ Ошибка отправки вечернего сообщения пользователю ${user.telegram_id}:`, userError);
       }
-    } catch (error) {
-      console.error('❌ Ошибка в sendEveningMessages:', error);
     }
+  } catch (error) {
+    console.error('❌ Ошибка в sendEveningMessages:', error);
   }
+}
 
   // === АДМИН РОУТЫ ===
   private setupAdminRoutes(): void {
@@ -971,15 +977,8 @@ private async handleTest(msg: TelegramBot.Message): Promise<void> {
 
     await this.bot.sendMessage(chatId, `🧪 ТЕСТ: День ${currentDay}\n\n=== УТРО ===`);
     
-    // Утреннее сообщение
-    await this.bot.sendMessage(chatId, dayContent.morningMessage, {
-      reply_markup: dayContent.options ? {
-        inline_keyboard: dayContent.options.map((option, index) => [{
-  text: option.text,
-  callback_data: `day_${currentDay}_evening_${index}`
-}])
-      } : undefined
-    });
+    // ✅ Утреннее сообщение (ТОЛЬКО ТЕКСТ)
+    await this.bot.sendMessage(chatId, dayContent.morningMessage);
 
     // Через 3 секунды - упражнение
     setTimeout(async () => {
@@ -1009,15 +1008,15 @@ private async handleTest(msg: TelegramBot.Message): Promise<void> {
       });
     }, 6000);
 
-    // Через 9 секунд - вечер
+    // Через 9 секунд - вечер (ВЕРТИКАЛЬНЫЕ кнопки)
     setTimeout(async () => {
       await this.bot.sendMessage(chatId, `=== ВЕЧЕР ===`);
       await this.bot.sendMessage(chatId, dayContent.eveningMessage, {
         reply_markup: dayContent.options ? {
           inline_keyboard: dayContent.options.map((option, index) => [{
-  text: option.text,
-  callback_data: `day_${currentDay}_evening_${index}`
-}])
+            text: option.text,
+            callback_data: `day_${currentDay}_evening_${index}`
+          }])
         } : undefined
       });
     }, 9000);

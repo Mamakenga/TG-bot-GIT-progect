@@ -318,21 +318,53 @@ export class Database {
   `;
   const result = await this.pool.query(query, [userId, day]);
   return result.rows.length > 0;
+
 }
   async markCourseCompleted(telegramId: number): Promise<void> {
     const query = 'UPDATE users SET course_completed = true, updated_at = CURRENT_TIMESTAMP WHERE telegram_id = $1';
     await this.pool.query(query, [telegramId]);
   }
 async resetUserProgress(telegramId: number): Promise<void> {
-  const query = `
-    UPDATE users 
-    SET course_completed = false, 
-        current_day = 1, 
-        is_paused = false,
-        updated_at = CURRENT_TIMESTAMP 
-    WHERE telegram_id = $1
-  `;
-  await this.pool.query(query, [telegramId]);
+  try {
+    // Проверяем, есть ли поле is_paused
+    const checkColumn = await this.pool.query(`
+      SELECT column_name 
+      FROM information_schema.columns 
+      WHERE table_name = 'users' AND column_name = 'is_paused'
+    `);
+    
+    let query: string;
+    if (checkColumn.rows.length > 0) {
+      // Если поле is_paused существует
+      query = `
+        UPDATE users 
+        SET course_completed = false, 
+            current_day = 1, 
+            is_paused = false,
+            updated_at = CURRENT_TIMESTAMP 
+        WHERE telegram_id = $1
+      `;
+    } else {
+      // Если поля is_paused нет
+      query = `
+        UPDATE users 
+        SET course_completed = false, 
+            current_day = 1, 
+            updated_at = CURRENT_TIMESTAMP 
+        WHERE telegram_id = $1
+      `;
+    }
+    
+    await this.pool.query(query, [telegramId]);
+    
+    // Также очищаем прогресс
+    await this.pool.query('DELETE FROM progress WHERE user_id = (SELECT id FROM users WHERE telegram_id = $1)', [telegramId]);
+    
+    console.log(`✅ Прогресс пользователя ${telegramId} сброшен`);
+  } catch (error) {
+    console.error('❌ Ошибка в resetUserProgress:', error);
+    throw error;
+  }
 }
   async createAlert(userId: number, triggerWord: string, message: string): Promise<void> {
     const query = `
@@ -371,12 +403,13 @@ async resetUserProgress(telegramId: number): Promise<void> {
   async getDetailedStats(): Promise<any> {
     const queries = {
       usersByDay: `
-        SELECT current_day, COUNT(*) as count 
-        FROM users 
-        WHERE course_completed = false AND is_paused = false
-        GROUP BY current_day 
-        ORDER BY current_day
-      `,
+  SELECT current_day, COUNT(*) as count 
+  FROM users 
+  WHERE course_completed = false 
+    AND (is_paused = false OR is_paused IS NULL)
+  GROUP BY current_day 
+  ORDER BY current_day
+`,
       completionRate: `
         SELECT 
           day,
@@ -468,6 +501,8 @@ async resetUserProgress(telegramId: number): Promise<void> {
   async close(): Promise<void> {
     await this.pool.end();
   }
+
+
 }
 
 export default Database;
