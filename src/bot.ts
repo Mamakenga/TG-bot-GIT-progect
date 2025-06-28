@@ -354,26 +354,26 @@ private setupAdminRoutes(): void {
     }
   };
 
-// Еженедельный отчет
-this.app.get('/dashboard/weekly-report', authenticate, async (req, res) => {
-  try {
-    const weekAgo = new Date();
-    weekAgo.setDate(weekAgo.getDate() - 7);
-    
-    const [stats, meaningfulResponses, alerts] = await Promise.all([
-      this.database.getStats(),
-      this.database.getMeaningfulResponses(5),
-      this.database.getAlerts()
-    ]);
-    
-    const unhandledAlerts = alerts.filter(a => !a.handled).length;
+  // Еженедельный отчет
+  this.app.get('/dashboard/weekly-report', authenticate, async (req, res) => {
+    try {
+      const weekAgo = new Date();
+      weekAgo.setDate(weekAgo.getDate() - 7);
+      
+      const [stats, meaningfulResponses, alerts] = await Promise.all([
+        this.database.getStats(),
+        this.database.getMeaningfulResponses(5),
+        this.database.getAlerts()
+      ]);
+      
+      const unhandledAlerts = alerts.filter(a => !a.handled).length;
 
-const html = `<!DOCTYPE html>
+      const html = `<!DOCTYPE html>
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Дашборд бота "Забота о себе"</title>
+    <title>Еженедельный отчет - Забота о себе</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { 
@@ -491,8 +491,8 @@ const html = `<!DOCTYPE html>
 <body>
     <div class="container">
         <div class="header">
-            <h1>Дашборд бота "Забота о себе"</h1>
-            <h4>Аналитика и управление курсом самосострадания</h4>
+            <h1>Еженедельный отчет</h1>
+            <h4>Аналитика курса самосострадания</h4>
         </div>
 
         <div class="stats-grid">
@@ -528,6 +528,7 @@ const html = `<!DOCTYPE html>
                 <a href="/dashboard/export/responses" class="action-btn">📄 Экспорт ответов (CSV)</a>
                 <a href="/dashboard/export/users" class="action-btn">👥 Экспорт пользователей (CSV)</a>
                 <a href="/dashboard/alerts" class="action-btn">🚨 Алерты безопасности</a>
+                <a href="/dashboard" class="action-btn">🏠 На главную</a>
             </div>
         </div>
 
@@ -550,8 +551,8 @@ const html = `<!DOCTYPE html>
                 <li>Детальная аналитика по дням курса</li>
                 <li>Графики эмоциональной динамики участников</li>
                 <li>Поиск и фильтрация ответов пользователей</li>
-                <li>Еженедельные отчеты для психолога</li>
                 <li>Визуализация статистики в реальном времени</li>
+                <li>Интеграция с внешними аналитическими системами</li>
             </ul>
         </div>
 
@@ -565,21 +566,21 @@ const html = `<!DOCTYPE html>
 </body>
 </html>`;
 
-    res.send(html);
-  } catch (error) {
-    console.error('❌ Ошибка еженедельного отчета:', error);
-    res.status(500).send('Ошибка генерации отчета: ' + error);
-  }
-});
+      res.send(html);
+    } catch (error) {
+      console.error('❌ Ошибка еженедельного отчета:', error);
+      res.status(500).send('Ошибка генерации отчета: ' + error);
+    }
+  });
 
-// Обновляем главную страницу дашборда с ссылками на новые разделы
-this.app.get('/dashboard', authenticate, async (req, res) => {
-  try {
-    const stats = await this.database.getStats();
-    const alerts = await this.database.getAlerts();
-    const unhandledAlerts = alerts.filter((alert: any) => !alert.handled).length;
-    
-    const html = `<!DOCTYPE html>
+  // Главная страница дашборда
+  this.app.get('/dashboard', authenticate, async (req, res) => {
+    try {
+      const stats = await this.database.getStats();
+      const alerts = await this.database.getAlerts();
+      const unhandledAlerts = alerts.filter((alert: any) => !alert.handled).length;
+      
+      const html = `<!DOCTYPE html>
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
@@ -732,8 +733,6 @@ this.app.get('/dashboard', authenticate, async (req, res) => {
                 <div class="big-number">${alerts.length}</div>
                 <p>Всего сигналов безопасности</p>
             </div>
-
-        </div>
         </div>
 
         <div style="text-align: center; color: rgba(255, 255, 255, 0.8); margin-top: 30px;">
@@ -743,8 +742,8 @@ this.app.get('/dashboard', authenticate, async (req, res) => {
             </p>
         </div>
     </div>
-</body>
-<script>
+
+    <script>
         document.addEventListener('DOMContentLoaded', function() {
             // Анимация чисел
             const numbers = document.querySelectorAll('.big-number');
@@ -762,32 +761,19 @@ this.app.get('/dashboard', authenticate, async (req, res) => {
                     }
                 }, 50);
             });
-
-            // Простой график активности
-            const canvas = document.getElementById('activityChart');
-            if (canvas) {
-                const ctx = canvas.getContext('2d');
-                const gradient = ctx.createLinearGradient(0, 0, 0, 200);
-                gradient.addColorStop(0, '#667eea');
-                gradient.addColorStop(1, '#764ba2');
-                
-                ctx.fillStyle = gradient;
-                ctx.fillRect(50, 150, 300, -${stats.activeToday * 5});
-                ctx.fillStyle = '#fff';
-                ctx.font = '14px Arial';
-                ctx.fillText('Активных сегодня: ${stats.activeToday}', 60, 140);
-            }
         });
     </script>
 </body>
 </html>`;
-    res.send(html);
-  } catch (error) {
-    res.status(500).send(`Ошибка: ${error}`);
-  }
-});
-    this.app.get('/', (req, res) => res.redirect('/dashboard'));
+      res.send(html);
+    } catch (error) {
+      res.status(500).send(`Ошибка: ${error}`);
     }
+  });
+
+  // Редирект с корня на дашборд
+  this.app.get('/', (req, res) => res.redirect('/dashboard'));
+}
 
   // === ОБРАБОТЧИКИ КОМАНД ===
   private async handleStart(msg: TelegramBot.Message): Promise<void> {
@@ -973,9 +959,9 @@ this.app.get('/dashboard', authenticate, async (req, res) => {
       // Обычные ответы для других кнопок
       const responses = [
         'Спасибо за ответ! 💙',
-        'Важно, что ты откликаешься 🌸', 
-        'Твоя честность ценна 💙',
-        'Благодарю за участие 🤗'
+        'Важно, что ты находишь время на себя! 🌸', 
+        'Хорошо, что ты написала это 💙',
+        'Я рад, что ты пишешь 🤗'
       ];
       const randomResponse = responses[Math.floor(Math.random() * responses.length)];
       
