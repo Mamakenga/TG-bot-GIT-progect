@@ -530,16 +530,17 @@ const escapeCSV = (value: any) => {
             </div>
         </div>
 
-        <div class="actions-card">
-            <h3>📤 Экспорт и управление</h3>
-            <p>Основные функции для работы с данными:</p>
-            <div style="margin-top: 15px;">
-                <a href="/dashboard/export/responses" class="action-btn">📄 Экспорт ответов (CSV)</a>
-                <a href="/dashboard/export/users" class="action-btn">👥 Экспорт пользователей (CSV)</a>
-                <a href="/dashboard/alerts" class="action-btn">🚨 Алерты безопасности</a>
-                <a href="/dashboard" class="action-btn">🏠 На главную</a>
-            </div>
-        </div>
+         <div class="actions-card">
+          <h3>📤 Экспорт и управление</h3>
+           <p>Основные функции для работы с данными:</p>
+           <div style="margin-top: 15px;">
+             <a href="/dashboard/export/responses" class="action-btn">📄 Экспорт ответов (CSV)</a>
+             <a href="/dashboard/export/users" class="action-btn">👥 Экспорт пользователей (CSV)</a>
+             <a href="/dashboard/export/alerts" class="action-btn">🚨 Экспорт алертов (CSV)</a>
+             <a href="/dashboard/alerts" class="action-btn">📋 Просмотр алертов</a>
+             <a href="/dashboard" class="action-btn">🏠 На главную</a>
+           </div>
+        </div> 
 
         <div class="info-card">
             <h3>📊 Возможности системы</h3>
@@ -864,29 +865,42 @@ this.app.get('/dashboard/export/users', authenticate, async (req, res) => {
   }
 });
 
-// Экспорт алертов в CSV
+// Экспорт алертов в CSV (ИСПРАВЛЕНО ДЛЯ POSTGRESQL)
 this.app.get('/dashboard/export/alerts', authenticate, async (req, res) => {
   try {
     console.log('📥 Запрос на экспорт алертов');
     
     const alerts = await this.database.getAlerts();
     
-    // Создаем CSV контент
+    // Создаем CSV контент с правильными полями PostgreSQL
     let csv = '\ufeff'; // BOM для корректного отображения кириллицы в Excel
-    csv += 'ID пользователя,Имя,Username,Тип алерта,Сообщение,Дата создания,Обработан,Дата обработки,Комментарий\n';
+    csv += 'ID алерта,ID пользователя,Имя,Telegram ID,Триггер,Сообщение,Обработан,Дата создания\n';
     
     alerts.forEach((alert: any) => {
-  csv += [
-    escapeCSV(alert.user_id), // вместо userId
-    escapeCSV(alert.first_name), // нужно будет джойнить с users
-    escapeCSV(alert.username || 'Не указан'),
-    escapeCSV(alert.type || alert.trigger_word || 'general'), // type или trigger_word
-    escapeCSV(alert.message),
-    escapeCSV(new Date(alert.created_at).toLocaleString('ru-RU')), // вместо createdAt
-    escapeCSV(alert.handled ? 'Да' : 'Нет'),
-    escapeCSV(alert.handled_at ? new Date(alert.handled_at).toLocaleString('ru-RU') : ''), // вместо handledAt
-    escapeCSV(alert.comment || '')
-  ].join(',') + '\n';
+      csv += [
+        escapeCSV(alert.id), // ID алерта
+        escapeCSV(alert.user_id), // ID пользователя в БД
+        escapeCSV(alert.first_name || 'Не указано'), // Имя (из JOIN с users)
+        escapeCSV(alert.username || alert.telegram_id), // Telegram ID
+        escapeCSV(alert.trigger_word || 'general'), // Триггерное слово
+        escapeCSV(alert.message), // Сообщение
+        escapeCSV(alert.handled ? 'Да' : 'Нет'), // Обработан ли
+        escapeCSV(new Date(alert.created_at).toLocaleString('ru-RU')) // Дата создания
+      ].join(',') + '\n';
+    });
+ 
+    // Устанавливаем заголовки для скачивания файла
+    const filename = `alerts_${new Date().toISOString().split('T')[0]}.csv`;
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    
+    console.log(`✅ Экспортировано ${alerts.length} алертов`);
+    res.send(csv);
+    
+  } catch (error) {
+    console.error('❌ Ошибка экспорта алертов:', error);
+    res.status(500).send(`Ошибка экспорта: ${error}`);
+  }
 });
  
     // Устанавливаем заголовки для скачивания файла
@@ -902,21 +916,6 @@ this.app.get('/dashboard/export/alerts', authenticate, async (req, res) => {
     res.status(500).send(`Ошибка экспорта: ${error}`);
   }
 });
-
-// Тестовый роут для проверки работы экспорта
-this.app.get('/dashboard/test-export', authenticate, async (req, res) => {
-  try {
-    // Простой тестовый CSV
-    const csv = '\ufeffТест,Проверка,Кириллица\n1,2,Привет\n3,4,Мир';
-    
-    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-    res.setHeader('Content-Disposition', 'attachment; filename="test.csv"');
-    res.send(csv);
-  } catch (error) {
-    res.status(500).send(`Ошибка: ${error}`);
-  }
-});
-}
 
   // === ОБРАБОТЧИКИ КОМАНД ===
   private async handleStart(msg: TelegramBot.Message): Promise<void> {
