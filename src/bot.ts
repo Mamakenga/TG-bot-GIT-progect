@@ -502,25 +502,25 @@ private setupAdminRoutes(): void {
         <div class="stats-grid">
             <div class="stat-card">
                 <h3>👥 Пользователи</h3>
-                <div class="big-number">\${stats.totalUsers}</div>
+                <div class="big-number">${stats.totalUsers}</div>
                 <p>Всего зарегистрировано</p>
             </div>
             
             <div class="stat-card">
                 <h3>📈 Активность сегодня</h3>
-                <div class="big-number">\${stats.activeToday}</div>
+                <div class="big-number">${stats.activeToday}</div>
                 <p>Активных пользователей</p>
             </div>
             
             <div class="stat-card">
                 <h3>🎯 Завершили курс</h3>
-                <div class="big-number">\${stats.completedCourse}</div>
+                <div class="big-number">${stats.completedCourse}</div>
                 <p>Прошли все 7 дней</p>
             </div>
 
             <div class="stat-card">
-                <h3>🚨 Алерты \${unhandledAlerts > 0 ? \`<span class="alert-badge">\${unhandledAlerts}</span>\` : ''}</h3>
-                <div class="big-number">\${alerts.length}</div>
+                <h3>🚨 Алерты ${unhandledAlerts > 0 ? `<span class="alert-badge">${unhandledAlerts}</span>` : ''}</h3>
+                <div class="big-number">${alerts.length}</div>
                 <p>Всего сигналов безопасности</p>
             </div>
         </div>
@@ -562,7 +562,7 @@ private setupAdminRoutes(): void {
         </div>
 
         <div style="text-align: center; color: rgba(255, 255, 255, 0.8); margin-top: 30px;">
-            <p>🕐 Последнее обновление: \${new Date().toLocaleString('ru-RU')}</p>
+            <p>🕐 Последнее обновление: ${new Date().toLocaleString('ru-RU')}</p>
             <p style="margin-top: 10px; font-size: 14px;">
                 💙 Сделано с заботой для психологического благополучия
             </p>
@@ -717,31 +717,31 @@ private setupAdminRoutes(): void {
         <div class="stats-grid">
             <div class="stat-card">
                 <h3>👥 Пользователи</h3>
-                <div class="big-number">\${stats.totalUsers}</div>
+                <div class="big-number">${stats.totalUsers}</div>
                 <p>Всего зарегистрировано</p>
             </div>
             
             <div class="stat-card">
                 <h3>📈 Активность сегодня</h3>
-                <div class="big-number">\${stats.activeToday}</div>
+                <div class="big-number">${stats.activeToday}</div>
                 <p>Активных пользователей</p>
             </div>
             
             <div class="stat-card">
                 <h3>🎯 Завершили курс</h3>
-                <div class="big-number">\${stats.completedCourse}</div>
+                <div class="big-number">${stats.completedCourse}</div>
                 <p>Прошли все 7 дней</p>
             </div>
 
             <div class="stat-card">
-                <h3>🚨 Алерты \${unhandledAlerts > 0 ? \`<span class="alert-badge">\${unhandledAlerts}</span>\` : ''}</h3>
-                <div class="big-number">\${alerts.length}</div>
+                <h3>🚨 Алерты ${unhandledAlerts > 0 ? `<span class="alert-badge">${unhandledAlerts}</span>` : ''}</h3>
+                <div class="big-number">${alerts.length}</div>
                 <p>Всего сигналов безопасности</p>
             </div>
         </div>
 
         <div style="text-align: center; color: rgba(255, 255, 255, 0.8); margin-top: 30px;">
-            <p>🕐 Последнее обновление: \${new Date().toLocaleString('ru-RU')}</p>
+            <p>🕐 Последнее обновление: ${new Date().toLocaleString('ru-RU')}</p>
             <p style="margin-top: 10px;">
                 💡 <strong>Новое:</strong> Теперь доступен детальный анализ данных и визуальные отчеты!
             </p>
