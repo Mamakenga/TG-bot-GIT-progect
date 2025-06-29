@@ -872,30 +872,28 @@ this.app.get('/dashboard/export/users', authenticate, async (req, res) => {
   try {
     console.log('📥 Запрос на экспорт пользователей');
     
-    // Получаем всех пользователей из базы данных
     const users = await this.database.getAllUsers();
     
-    // Создаем CSV контент
-    let csv = '\ufeff'; // BOM для корректного отображения кириллицы в Excel
+    let csv = '\ufeff';
     csv += 'ID,Имя,Username,Текущий день,Дата регистрации,Последняя активность,Завершил курс,Количество ответов\n';
     
     for (const user of users) {
-  const userResponses = await this.database.getUserResponses(user.telegram_id); // используем telegram_id
-  const responseCount = userResponses.length;
-  
-  csv += [
-    escapeCSV(user.id), // id пользователя в БД
-    escapeCSV(user.first_name), // вместо firstName
-    escapeCSV(user.username || 'Не указан'),
-    escapeCSV(user.current_day), // вместо currentDay
-    escapeCSV(new Date(user.created_at).toLocaleString('ru-RU')), // вместо createdAt
-    escapeCSV(new Date(user.last_activity).toLocaleString('ru-RU')), // вместо lastActivity
-    escapeCSV(user.current_day >= 7 ? 'Да' : 'Нет'),
-    escapeCSV(responseCount)
-  ].join(',') + '\n';
-}
+      const userResponses = await this.database.getUserResponses(user.telegram_id);
+      const responseCount = userResponses.length;
+      
+      csv += [
+        escapeCSV(user.id),
+        escapeCSV(user.first_name),
+        escapeCSV(user.username || 'Не указан'),
+        escapeCSV(user.current_day),
+        escapeCSV(new Date(user.created_at).toLocaleString('ru-RU')),
+        escapeCSV(new Date(user.last_activity).toLocaleString('ru-RU')),
+        escapeCSV(user.current_day >= 7 ? 'Да' : 'Нет'),
+        escapeCSV(responseCount)
+      ].join(',') + '\n';
+    }
     
-    // Устанавливаем заголовки для скачивания файла
+    // ✅ ЗАГОЛОВКИ ВНУТРИ try:
     const filename = `users_${new Date().toISOString().split('T')[0]}.csv`;
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
@@ -908,6 +906,7 @@ this.app.get('/dashboard/export/users', authenticate, async (req, res) => {
     res.status(500).send(`Ошибка экспорта: ${error}`);
   }
 });
+}  // закрытие метода setupAdminRoutes()
   // === ОБРАБОТЧИКИ КОМАНД ===
   private async handleStart(msg: TelegramBot.Message): Promise<void> {
     const chatId = msg.chat.id;
