@@ -532,7 +532,6 @@ private setupAdminRoutes(): void {
              <a href="/dashboard/export/responses" class="action-btn">📄 Экспорт ответов (CSV)</a>
              <a href="/dashboard/export/users" class="action-btn">👥 Экспорт пользователей (CSV)</a>
              <a href="/dashboard/export/alerts" class="action-btn">🚨 Экспорт алертов (CSV)</a>
-            <a href="/dashboard/alerts" class="action-btn">📋 Просмотр алертов</a>
              <a href="/dashboard" class="action-btn">🏠 На главную</a>
            </div>
         </div> 
