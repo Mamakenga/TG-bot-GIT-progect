@@ -337,8 +337,6 @@ class SelfCareBot {
   }
 
   // === ИСПРАВЛЕННЫЕ АДМИН РОУТЫ ===
-
-
 private setupAdminRoutes(): void {
   const authenticate = (req: express.Request, res: express.Response, next: express.NextFunction) => {
     const auth = req.headers.authorization;
@@ -355,7 +353,7 @@ private setupAdminRoutes(): void {
   };
 
   // Функция для экранирования CSV
-  const escapeCSV = (value: any) => {
+  const escapeCSV = (value: any): string => {
     if (value === null || value === undefined) return '';
     const str = String(value);
     if (str.includes(',') || str.includes('"') || str.includes('\n')) {
@@ -367,15 +365,12 @@ private setupAdminRoutes(): void {
   // Еженедельный отчет
   this.app.get('/dashboard/weekly-report', authenticate, async (req, res) => {
     try {
-      const weekAgo = new Date();
-      weekAgo.setDate(weekAgo.getDate() - 7);
-      
       const [stats, alerts] = await Promise.all([
         this.database.getStats(),
         this.database.getAlerts()
       ]);
       
-      const unhandledAlerts = alerts.filter(a => !a.handled).length;
+      const unhandledAlerts = alerts.filter((a: any) => !a.handled).length;
 
       const html = `<!DOCTYPE html>
 <html lang="ru">
@@ -784,27 +779,27 @@ private setupAdminRoutes(): void {
   // Редирект с корня на дашборд
   this.app.get('/', (req, res) => res.redirect('/dashboard'));
 
-  // Экспорт ответов пользователей в CSV
+  // Экспорт ответов пользователей в CSV (адаптировано для PostgreSQL)
   this.app.get('/dashboard/export/responses', authenticate, async (req, res) => {
     try {
       console.log('📥 Запрос на экспорт ответов');
       
-      // Получаем все ответы из базы данных
+      // Получаем все ответы из базы данных (PostgreSQL)
       const responses = await this.database.getAllResponses();
       
       // Создаем CSV контент
       let csv = '\ufeff'; // BOM для корректного отображения кириллицы в Excel
-      csv += 'ID пользователя,Имя,Username,День,Вопрос,Ответ,Дата и время\n';
+      csv += 'ID пользователя,Имя,Username,День,Тип вопроса,Ответ,Дата и время\n';
       
       responses.forEach((response: any) => {
         csv += [
-          escapeCSV(response.user_id), // вместо userId
-          escapeCSV(response.first_name), // вместо firstName
-          escapeCSV(response.username || 'Не указан'),
+          escapeCSV(response.user_id),
+          escapeCSV(response.first_name || response.name),
+          escapeCSV(response.username || response.telegram_id),
           escapeCSV(response.day),
-          escapeCSV(response.question),
-          escapeCSV(response.answer),
-          escapeCSV(new Date(response.created_at).toLocaleString('ru-RU')) // вместо timestamp
+          escapeCSV(response.question || response.question_type),
+          escapeCSV(response.answer || response.response_text),
+          escapeCSV(new Date(response.created_at).toLocaleString('ru-RU'))
         ].join(',') + '\n';
       });
       
@@ -822,7 +817,7 @@ private setupAdminRoutes(): void {
     }
   });
 
-  // Экспорт алертов в CSV
+  // Экспорт алертов в CSV (адаптировано для PostgreSQL)
   this.app.get('/dashboard/export/alerts', authenticate, async (req, res) => {
     try {
       console.log('📥 Запрос на экспорт алертов');
@@ -837,7 +832,7 @@ private setupAdminRoutes(): void {
         csv += [
           escapeCSV(alert.id),
           escapeCSV(alert.user_id),
-          escapeCSV(alert.first_name || 'Не указано'),
+          escapeCSV(alert.first_name || alert.name || 'Не указано'),
           escapeCSV(alert.username || alert.telegram_id),
           escapeCSV(alert.trigger_word || 'general'),
           escapeCSV(alert.message),
@@ -860,7 +855,7 @@ private setupAdminRoutes(): void {
     }
   });
 
-  // Экспорт данных пользователей в CSV
+  // Экспорт данных пользователей в CSV (адаптировано для PostgreSQL)
   this.app.get('/dashboard/export/users', authenticate, async (req, res) => {
     try {
       console.log('📥 Запрос на экспорт пользователей');
@@ -876,11 +871,11 @@ private setupAdminRoutes(): void {
         
         csv += [
           escapeCSV(user.id),
-          escapeCSV(user.first_name),
-          escapeCSV(user.username || 'Не указан'),
+          escapeCSV(user.first_name || user.name),
+          escapeCSV(user.username || user.telegram_id),
           escapeCSV(user.current_day),
           escapeCSV(new Date(user.created_at).toLocaleString('ru-RU')),
-          escapeCSV(new Date(user.last_activity).toLocaleString('ru-RU')),
+          escapeCSV(new Date(user.last_activity || user.updated_at).toLocaleString('ru-RU')),
           escapeCSV(user.current_day >= 7 ? 'Да' : 'Нет'),
           escapeCSV(responseCount)
         ].join(',') + '\n';
