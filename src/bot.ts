@@ -353,15 +353,16 @@ private setupAdminRoutes(): void {
       res.status(401).send('Неверные данные');
     }
   };
+
   // Функция для экранирования CSV
-const escapeCSV = (value: any) => {
-  if (value === null || value === undefined) return '';
-  const str = String(value);
-  if (str.includes(',') || str.includes('"') || str.includes('\n')) {
-    return `"${str.replace(/"/g, '""')}"`;
-  }
-  return str;
-};
+  const escapeCSV = (value: any) => {
+    if (value === null || value === undefined) return '';
+    const str = String(value);
+    if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+      return `"${str.replace(/"/g, '""')}"`;
+    }
+    return str;
+  };
 
   // Еженедельный отчет
   this.app.get('/dashboard/weekly-report', authenticate, async (req, res) => {
@@ -370,9 +371,9 @@ const escapeCSV = (value: any) => {
       weekAgo.setDate(weekAgo.getDate() - 7);
       
       const [stats, alerts] = await Promise.all([
-  this.database.getStats(),
-  this.database.getAlerts()
-]);
+        this.database.getStats(),
+        this.database.getAlerts()
+      ]);
       
       const unhandledAlerts = alerts.filter(a => !a.handled).length;
 
@@ -506,25 +507,25 @@ const escapeCSV = (value: any) => {
         <div class="stats-grid">
             <div class="stat-card">
                 <h3>👥 Пользователи</h3>
-                <div class="big-number">${stats.totalUsers}</div>
+                <div class="big-number">\${stats.totalUsers}</div>
                 <p>Всего зарегистрировано</p>
             </div>
             
             <div class="stat-card">
                 <h3>📈 Активность сегодня</h3>
-                <div class="big-number">${stats.activeToday}</div>
+                <div class="big-number">\${stats.activeToday}</div>
                 <p>Активных пользователей</p>
             </div>
             
             <div class="stat-card">
                 <h3>🎯 Завершили курс</h3>
-                <div class="big-number">${stats.completedCourse}</div>
+                <div class="big-number">\${stats.completedCourse}</div>
                 <p>Прошли все 7 дней</p>
             </div>
 
             <div class="stat-card">
-                <h3>🚨 Алерты ${unhandledAlerts > 0 ? `<span class="alert-badge">${unhandledAlerts}</span>` : ''}</h3>
-                <div class="big-number">${alerts.length}</div>
+                <h3>🚨 Алерты \${unhandledAlerts > 0 ? \`<span class="alert-badge">\${unhandledAlerts}</span>\` : ''}</h3>
+                <div class="big-number">\${alerts.length}</div>
                 <p>Всего сигналов безопасности</p>
             </div>
         </div>
@@ -566,7 +567,7 @@ const escapeCSV = (value: any) => {
         </div>
 
         <div style="text-align: center; color: rgba(255, 255, 255, 0.8); margin-top: 30px;">
-            <p>🕐 Последнее обновление: ${new Date().toLocaleString('ru-RU')}</p>
+            <p>🕐 Последнее обновление: \${new Date().toLocaleString('ru-RU')}</p>
             <p style="margin-top: 10px; font-size: 14px;">
                 💙 Сделано с заботой для психологического благополучия
             </p>
@@ -721,31 +722,31 @@ const escapeCSV = (value: any) => {
         <div class="stats-grid">
             <div class="stat-card">
                 <h3>👥 Пользователи</h3>
-                <div class="big-number">${stats.totalUsers}</div>
+                <div class="big-number">\${stats.totalUsers}</div>
                 <p>Всего зарегистрировано</p>
             </div>
             
             <div class="stat-card">
                 <h3>📈 Активность сегодня</h3>
-                <div class="big-number">${stats.activeToday}</div>
+                <div class="big-number">\${stats.activeToday}</div>
                 <p>Активных пользователей</p>
             </div>
             
             <div class="stat-card">
                 <h3>🎯 Завершили курс</h3>
-                <div class="big-number">${stats.completedCourse}</div>
+                <div class="big-number">\${stats.completedCourse}</div>
                 <p>Прошли все 7 дней</p>
             </div>
 
             <div class="stat-card">
-                <h3>🚨 Алерты ${unhandledAlerts > 0 ? `<span class="alert-badge">${unhandledAlerts}</span>` : ''}</h3>
-                <div class="big-number">${alerts.length}</div>
+                <h3>🚨 Алерты \${unhandledAlerts > 0 ? \`<span class="alert-badge">\${unhandledAlerts}</span>\` : ''}</h3>
+                <div class="big-number">\${alerts.length}</div>
                 <p>Всего сигналов безопасности</p>
             </div>
         </div>
 
         <div style="text-align: center; color: rgba(255, 255, 255, 0.8); margin-top: 30px;">
-            <p>🕐 Последнее обновление: ${new Date().toLocaleString('ru-RU')}</p>
+            <p>🕐 Последнее обновление: \${new Date().toLocaleString('ru-RU')}</p>
             <p style="margin-top: 10px;">
                 💡 <strong>Новое:</strong> Теперь доступен детальный анализ данных и визуальные отчеты!
             </p>
@@ -782,131 +783,123 @@ const escapeCSV = (value: any) => {
 
   // Редирект с корня на дашборд
   this.app.get('/', (req, res) => res.redirect('/dashboard'));
-// Добавьте эти роуты в метод setupAdminRoutes() после основных роутов дашборда
 
-// Экспорт ответов пользователей в CSV
-this.app.get('/dashboard/export/responses', authenticate, async (req, res) => {
-  try {
-    console.log('📥 Запрос на экспорт ответов');
-    
-    // Получаем все ответы из базы данных
-    const responses = await this.database.getAllResponses();
-    
-    // Создаем CSV контент
-    let csv = '\ufeff'; // BOM для корректного отображения кириллицы в Excel
-    csv += 'ID пользователя,Имя,Username,День,Вопрос,Ответ,Дата и время\n';
-    
-    responses.forEach((response: any) => {
-  csv += [
-    escapeCSV(response.user_id), // вместо userId
-    escapeCSV(response.first_name), // вместо firstName
-    escapeCSV(response.username || 'Не указан'),
-    escapeCSV(response.day),
-    escapeCSV(response.question),
-    escapeCSV(response.answer),
-    escapeCSV(new Date(response.created_at).toLocaleString('ru-RU')) // вместо timestamp
-  ].join(',') + '\n';
-});
-    
-    // Устанавливаем заголовки для скачивания файла
-    const filename = `responses_${new Date().toISOString().split('T')[0]}.csv`;
-    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-    
-    console.log(`✅ Экспортировано ${responses.length} ответов`);
-    res.send(csv);
-    
-  } catch (error) {
-    console.error('❌ Ошибка экспорта ответов:', error);
-    res.status(500).send(`Ошибка экспорта: ${error}`);
-  }
-});
-// Экспорт алертов в CSV
-this.app.get('/dashboard/export/alerts', authenticate, async (req, res) => {
-  try {
-    console.log('📥 Запрос на экспорт алертов');
-    
-    const alerts = await this.database.getAlerts();
-    
-    // Создаем CSV контент
-    let csv = '\ufeff'; // BOM для корректного отображения кириллицы в Excel
-    csv += 'ID алерта,ID пользователя,Имя,Telegram ID,Триггер,Сообщение,Обработан,Дата создания\n';
-    
-    alerts.forEach((alert: any) => {
-      const escapeCsv = (value: any) => {
-        if (value === null || value === undefined) return '';
-        const str = String(value);
-        if (str.includes(',') || str.includes('"') || str.includes('\n')) {
-          return `"${str.replace(/"/g, '""')}"`;
-        }
-        return str;
-      };
-
-      csv += [
-        escapeCsv(alert.id),
-        escapeCsv(alert.user_id),
-        escapeCsv(alert.first_name || 'Не указано'),
-        escapeCsv(alert.username || alert.telegram_id),
-        escapeCsv(alert.trigger_word || 'general'),
-        escapeCsv(alert.message),
-        escapeCsv(alert.handled ? 'Да' : 'Нет'),
-        escapeCsv(new Date(alert.created_at).toLocaleString('ru-RU'))
-      ].join(',') + '\n';
-    });
- 
-    // Устанавливаем заголовки для скачивания файла
-    const filename = `alerts_${new Date().toISOString().split('T')[0]}.csv`;
-    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-    
-    console.log(`✅ Экспортировано ${alerts.length} алертов`);
-    res.send(csv);
-    
-  } catch (error) {
-    console.error('❌ Ошибка экспорта алертов:', error);
-    res.status(500).send(`Ошибка экспорта: ${error}`);
-  }
-});
-// Экспорт данных пользователей в CSV
-this.app.get('/dashboard/export/users', authenticate, async (req, res) => {
-  try {
-    console.log('📥 Запрос на экспорт пользователей');
-    
-    const users = await this.database.getAllUsers();
-    
-    let csv = '\ufeff';
-    csv += 'ID,Имя,Username,Текущий день,Дата регистрации,Последняя активность,Завершил курс,Количество ответов\n';
-    
-    for (const user of users) {
-      const userResponses = await this.database.getUserResponses(user.telegram_id);
-      const responseCount = userResponses.length;
+  // Экспорт ответов пользователей в CSV
+  this.app.get('/dashboard/export/responses', authenticate, async (req, res) => {
+    try {
+      console.log('📥 Запрос на экспорт ответов');
       
-      csv += [
-        escapeCSV(user.id),
-        escapeCSV(user.first_name),
-        escapeCSV(user.username || 'Не указан'),
-        escapeCSV(user.current_day),
-        escapeCSV(new Date(user.created_at).toLocaleString('ru-RU')),
-        escapeCSV(new Date(user.last_activity).toLocaleString('ru-RU')),
-        escapeCSV(user.current_day >= 7 ? 'Да' : 'Нет'),
-        escapeCSV(responseCount)
-      ].join(',') + '\n';
+      // Получаем все ответы из базы данных
+      const responses = await this.database.getAllResponses();
+      
+      // Создаем CSV контент
+      let csv = '\ufeff'; // BOM для корректного отображения кириллицы в Excel
+      csv += 'ID пользователя,Имя,Username,День,Вопрос,Ответ,Дата и время\n';
+      
+      responses.forEach((response: any) => {
+        csv += [
+          escapeCSV(response.user_id), // вместо userId
+          escapeCSV(response.first_name), // вместо firstName
+          escapeCSV(response.username || 'Не указан'),
+          escapeCSV(response.day),
+          escapeCSV(response.question),
+          escapeCSV(response.answer),
+          escapeCSV(new Date(response.created_at).toLocaleString('ru-RU')) // вместо timestamp
+        ].join(',') + '\n';
+      });
+      
+      // Устанавливаем заголовки для скачивания файла
+      const filename = `responses_${new Date().toISOString().split('T')[0]}.csv`;
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      
+      console.log(`✅ Экспортировано ${responses.length} ответов`);
+      res.send(csv);
+      
+    } catch (error) {
+      console.error('❌ Ошибка экспорта ответов:', error);
+      res.status(500).send(`Ошибка экспорта: ${error}`);
     }
-    
-    // ✅ ЗАГОЛОВКИ ВНУТРИ try:
-    const filename = `users_${new Date().toISOString().split('T')[0]}.csv`;
-    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-    
-    console.log(`✅ Экспортировано ${users.length} пользователей`);
-    res.send(csv);
-    
-  } catch (error) {
-    console.error('❌ Ошибка экспорта пользователей:', error);
-    res.status(500).send(`Ошибка экспорта: ${error}`);
-  }
-});
-}  // закрытие метода setupAdminRoutes()
+  });
+
+  // Экспорт алертов в CSV
+  this.app.get('/dashboard/export/alerts', authenticate, async (req, res) => {
+    try {
+      console.log('📥 Запрос на экспорт алертов');
+      
+      const alerts = await this.database.getAlerts();
+      
+      // Создаем CSV контент
+      let csv = '\ufeff'; // BOM для корректного отображения кириллицы в Excel
+      csv += 'ID алерта,ID пользователя,Имя,Telegram ID,Триггер,Сообщение,Обработан,Дата создания\n';
+      
+      alerts.forEach((alert: any) => {
+        csv += [
+          escapeCSV(alert.id),
+          escapeCSV(alert.user_id),
+          escapeCSV(alert.first_name || 'Не указано'),
+          escapeCSV(alert.username || alert.telegram_id),
+          escapeCSV(alert.trigger_word || 'general'),
+          escapeCSV(alert.message),
+          escapeCSV(alert.handled ? 'Да' : 'Нет'),
+          escapeCSV(new Date(alert.created_at).toLocaleString('ru-RU'))
+        ].join(',') + '\n';
+      });
+   
+      // Устанавливаем заголовки для скачивания файла
+      const filename = `alerts_${new Date().toISOString().split('T')[0]}.csv`;
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      
+      console.log(`✅ Экспортировано ${alerts.length} алертов`);
+      res.send(csv);
+      
+    } catch (error) {
+      console.error('❌ Ошибка экспорта алертов:', error);
+      res.status(500).send(`Ошибка экспорта: ${error}`);
+    }
+  });
+
+  // Экспорт данных пользователей в CSV
+  this.app.get('/dashboard/export/users', authenticate, async (req, res) => {
+    try {
+      console.log('📥 Запрос на экспорт пользователей');
+      
+      const users = await this.database.getAllUsers();
+      
+      let csv = '\ufeff';
+      csv += 'ID,Имя,Username,Текущий день,Дата регистрации,Последняя активность,Завершил курс,Количество ответов\n';
+      
+      for (const user of users) {
+        const userResponses = await this.database.getUserResponses(user.telegram_id);
+        const responseCount = userResponses.length;
+        
+        csv += [
+          escapeCSV(user.id),
+          escapeCSV(user.first_name),
+          escapeCSV(user.username || 'Не указан'),
+          escapeCSV(user.current_day),
+          escapeCSV(new Date(user.created_at).toLocaleString('ru-RU')),
+          escapeCSV(new Date(user.last_activity).toLocaleString('ru-RU')),
+          escapeCSV(user.current_day >= 7 ? 'Да' : 'Нет'),
+          escapeCSV(responseCount)
+        ].join(',') + '\n';
+      }
+      
+      // Устанавливаем заголовки для скачивания файла
+      const filename = `users_${new Date().toISOString().split('T')[0]}.csv`;
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      
+      console.log(`✅ Экспортировано ${users.length} пользователей`);
+      res.send(csv);
+      
+    } catch (error) {
+      console.error('❌ Ошибка экспорта пользователей:', error);
+      res.status(500).send(`Ошибка экспорта: ${error}`);
+    }
+  });
+}
   // === ОБРАБОТЧИКИ КОМАНД ===
   private async handleStart(msg: TelegramBot.Message): Promise<void> {
     const chatId = msg.chat.id;
