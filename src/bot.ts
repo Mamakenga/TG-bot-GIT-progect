@@ -336,7 +336,7 @@ class SelfCareBot {
     }
   }
 
-  // === ИСПРАВЛЕННЫЕ АДМИН РОУТЫ ===
+  // === АДМИН РОУТЫ ===
 private setupAdminRoutes(): void {
   const authenticate = (req: express.Request, res: express.Response, next: express.NextFunction) => {
     const auth = req.headers.authorization;
@@ -532,6 +532,7 @@ private setupAdminRoutes(): void {
              <a href="/dashboard/export/responses" class="action-btn">📄 Экспорт ответов (CSV)</a>
              <a href="/dashboard/export/users" class="action-btn">👥 Экспорт пользователей (CSV)</a>
              <a href="/dashboard/export/alerts" class="action-btn">🚨 Экспорт алертов (CSV)</a>
+            <a href="/dashboard/alerts" class="action-btn">📋 Просмотр алертов</a>
              <a href="/dashboard" class="action-btn">🏠 На главную</a>
            </div>
         </div> 
@@ -574,6 +575,738 @@ private setupAdminRoutes(): void {
     } catch (error) {
       console.error('❌ Ошибка еженедельного отчета:', error);
       res.status(500).send('Ошибка генерации отчета: ' + error);
+    }
+  });
+
+  // Страница аналитики
+  this.app.get('/dashboard/analytics', authenticate, async (req, res) => {
+    try {
+      const stats = await this.database.getStats();
+      const html = `<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Аналитика - Забота о себе</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+            line-height: 1.6;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container { 
+            max-width: 1200px; 
+            margin: 0 auto;
+        }
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            color: #667eea;
+            padding: 30px;
+            text-align: center;
+            margin-bottom: 30px;
+            border-radius: 15px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+        }
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .info-card {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+            border-left: 5px solid #667eea;
+        }
+        .action-btn {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            text-decoration: none;
+            display: inline-block;
+            margin: 8px 8px 8px 0;
+            transition: all 0.3s ease;
+            font-weight: 500;
+        }
+        .action-btn:hover { 
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📊 Аналитика</h1>
+            <p>Глубокий анализ данных курса самосострадания</p>
+        </div>
+
+        <div class="info-card">
+            <h3>📈 Статистика курса</h3>
+            <p><strong>Всего пользователей:</strong> ${stats.totalUsers}</p>
+            <p><strong>Активных сегодня:</strong> ${stats.activeToday}</p>
+            <p><strong>Завершили курс:</strong> ${stats.completedCourse}</p>
+            <p style="margin-top: 15px;"><em>Детальная аналитика будет добавлена в следующих версиях</em></p>
+        </div>
+
+        <div class="info-card">
+            <h3>🚀 Планируемые функции аналитики</h3>
+            <ul>
+                <li>Графики завершаемости по дням</li>
+                <li>Эмоциональная динамика участников</li>
+                <li>Анализ самых эффективных упражнений</li>
+                <li>Временные паттерны активности</li>
+                <li>Прогнозирование отсева</li>
+            </ul>
+        </div>
+
+        <div style="text-align: center; margin-top: 30px;">
+            <a href="/dashboard" class="action-btn">🏠 Вернуться на главную</a>
+        </div>
+    </div>
+</body>
+</html>`;
+      res.send(html);
+    } catch (error) {
+      res.status(500).send(`Ошибка: ${error}`);
+    }
+  });
+
+  // Страница ответов пользователей
+  this.app.get('/dashboard/responses', authenticate, async (req, res) => {
+    try {
+      const responses = await this.database.getAllResponses();
+      
+      const html = `<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ответы пользователей - Забота о себе</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+            line-height: 1.6;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container { 
+            max-width: 1200px; 
+            margin: 0 auto;
+        }
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            color: #667eea;
+            padding: 30px;
+            text-align: center;
+            margin-bottom: 30px;
+            border-radius: 15px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+        }
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .response-card {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            margin-bottom: 15px;
+            border-left: 5px solid #667eea;
+        }
+        .response-meta {
+            font-size: 0.9em;
+            color: #666;
+            margin-bottom: 10px;
+        }
+        .response-text {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 10px;
+        }
+        .action-btn {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            text-decoration: none;
+            display: inline-block;
+            margin: 8px 8px 8px 0;
+            transition: all 0.3s ease;
+            font-weight: 500;
+        }
+        .action-btn:hover { 
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>💭 Ответы пользователей</h1>
+            <p>Последние ${responses.length} ответов участников курса</p>
+        </div>
+
+        <div style="text-align: center; margin-bottom: 30px;">
+            <a href="/dashboard/export/responses" class="action-btn">📄 Экспорт в CSV</a>
+            <a href="/dashboard" class="action-btn">🏠 На главную</a>
+        </div>
+
+        ${responses.slice(0, 20).map(response => `
+        <div class="response-card">
+            <div class="response-meta">
+                <strong>${response.first_name || response.name || 'Пользователь'}</strong> • 
+                День ${response.day} • 
+                ${new Date(response.created_at).toLocaleString('ru-RU')}
+            </div>
+            <strong>Вопрос:</strong> ${response.question || response.question_type}
+            <div class="response-text">
+                ${response.answer || response.response_text || 'Ответ не указан'}
+            </div>
+        </div>
+        `).join('')}
+
+        ${responses.length > 20 ? `
+        <div style="text-align: center; margin-top: 30px;">
+            <p style="color: rgba(255, 255, 255, 0.8);">
+                Показаны первые 20 ответов из ${responses.length}. 
+                <a href="/dashboard/export/responses" style="color: white;">Скачайте CSV</a> для полного списка.
+            </p>
+        </div>
+        ` : ''}
+    </div>
+</body>
+</html>`;
+      res.send(html);
+    } catch (error) {
+      res.status(500).send(`Ошибка: ${error}`);
+    }
+  });
+
+  // АНАЛИТИКА с красивыми графиками
+  this.app.get('/dashboard/analytics', authenticate, async (req, res) => {
+    try {
+      const [stats, detailedStats, completionData, emotionalData, dropoffData] = await Promise.all([
+        this.database.getStats(),
+        this.database.getDetailedStats(),
+        this.database.getCompletionByDays(),
+        this.database.getEmotionalDynamics(),
+        this.database.getDropoffDays()
+      ]);
+
+      const html = `<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>📊 Аналитика - Забота о себе</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+            line-height: 1.6;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container { max-width: 1200px; margin: 0 auto; }
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            color: #667eea;
+            padding: 30px;
+            text-align: center;
+            margin-bottom: 30px;
+            border-radius: 15px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+        }
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .stat-card, .chart-card {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease;
+        }
+        .stat-card:hover, .chart-card:hover { transform: translateY(-5px); }
+        .big-number {
+            font-size: 2.5em;
+            font-weight: bold;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin: 10px 0;
+        }
+        .chart-container { position: relative; height: 300px; margin-top: 15px; }
+        .action-btn {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            text-decoration: none;
+            display: inline-block;
+            margin: 8px 8px 8px 0;
+            transition: all 0.3s ease;
+            font-weight: 500;
+        }
+        .action-btn:hover { 
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+        }
+        .insights {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+            border-left: 5px solid #667eea;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📊 Аналитика курса</h1>
+            <p>Детальный анализ данных самосострадания</p>
+        </div>
+
+        <div class="stats-grid">
+            <div class="stat-card">
+                <h3>👥 Всего пользователей</h3>
+                <div class="big-number">${stats.totalUsers}</div>
+                <p>Зарегистрировано в системе</p>
+            </div>
+            <div class="stat-card">
+                <h3>📈 Активность сегодня</h3>
+                <div class="big-number">${stats.activeToday}</div>
+                <p>Активных пользователей</p>
+            </div>
+            <div class="stat-card">
+                <h3>🎯 Завершили курс</h3>
+                <div class="big-number">${stats.completedCourse}</div>
+                <p>${Math.round((stats.completedCourse / stats.totalUsers) * 100)}% от всех</p>
+            </div>
+        </div>
+
+        <div class="stats-grid">
+            <div class="chart-card">
+                <h3>📅 Распределение по дням</h3>
+                <div class="chart-container">
+                    <canvas id="usersByDayChart"></canvas>
+                </div>
+            </div>
+            <div class="chart-card">
+                <h3>📊 Завершаемость по дням</h3>
+                <div class="chart-container">
+                    <canvas id="completionChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div class="stats-grid">
+            <div class="chart-card">
+                <h3>💭 Эмоциональная динамика</h3>
+                <div class="chart-container">
+                    <canvas id="emotionalChart"></canvas>
+                </div>
+            </div>
+            <div class="chart-card">
+                <h3>📉 Удержание пользователей</h3>
+                <div class="chart-container">
+                    <canvas id="retentionChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div class="insights">
+            <h3>🔍 Ключевые инсайты</h3>
+            <ul>
+                <li><strong>Конверсия:</strong> ${Math.round((stats.completedCourse / stats.totalUsers) * 100)}% пользователей завершают курс</li>
+                <li><strong>Самый сложный день:</strong> ${dropoffData.length > 0 ? 
+                  `День ${dropoffData.reduce((min: any, day: any) => day.retention_rate < min.retention_rate ? day : min).day}` : 
+                  'Данных пока недостаточно'}</li>
+                <li><strong>Общая активность:</strong> ${stats.activeToday} активных из ${stats.totalUsers} пользователей</li>
+                <li><strong>Эмоциональный тренд:</strong> ${emotionalData.length > 0 ? 
+                  (emotionalData[emotionalData.length - 1]?.positive > emotionalData[emotionalData.length - 1]?.negative ? 
+                    'Позитивный' : 'Требует внимания') : 'Анализируется'}</li>
+            </ul>
+        </div>
+
+        <div style="text-align: center; margin-top: 30px;">
+            <a href="/dashboard" class="action-btn">🏠 На главную</a>
+            <a href="/dashboard/responses" class="action-btn">💭 Ответы пользователей</a>
+            <a href="/dashboard/export/responses" class="action-btn">📥 Экспорт CSV</a>
+        </div>
+    </div>
+
+    <script>
+        // График распределения по дням
+        const usersByDayCtx = document.getElementById('usersByDayChart').getContext('2d');
+        new Chart(usersByDayCtx, {
+            type: 'bar',
+            data: {
+                labels: ['День 1', 'День 2', 'День 3', 'День 4', 'День 5', 'День 6', 'День 7'],
+                datasets: [{
+                    label: 'Пользователей на дне',
+                    data: ${JSON.stringify(detailedStats.usersByDay?.map((d: any) => d.count) || [0,0,0,0,0,0,0])},
+                    backgroundColor: 'rgba(102, 126, 234, 0.6)',
+                    borderColor: 'rgba(102, 126, 234, 1)',
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    y: { beginAtZero: true }
+                }
+            }
+        });
+
+        // График завершаемости
+        const completionCtx = document.getElementById('completionChart').getContext('2d');
+        new Chart(completionCtx, {
+            type: 'line',
+            data: {
+                labels: ['День 1', 'День 2', 'День 3', 'День 4', 'День 5', 'День 6', 'День 7'],
+                datasets: [{
+                    label: 'Завершили день',
+                    data: ${JSON.stringify(completionData?.map((d: any) => d.completed) || [0,0,0,0,0,0,0])},
+                    borderColor: 'rgba(118, 75, 162, 1)',
+                    backgroundColor: 'rgba(118, 75, 162, 0.1)',
+                    fill: true,
+                    tension: 0.4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: { y: { beginAtZero: true } }
+            }
+        });
+
+        // График эмоциональной динамики  
+        const emotionalCtx = document.getElementById('emotionalChart').getContext('2d');
+        new Chart(emotionalCtx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Позитивные', 'Негативные', 'Нейтральные'],
+                datasets: [{
+                    data: [
+                        ${emotionalData?.reduce((sum: number, d: any) => sum + d.positive, 0) || 0},
+                        ${emotionalData?.reduce((sum: number, d: any) => sum + d.negative, 0) || 0},
+                        ${emotionalData?.reduce((sum: number, d: any) => sum + (d.total_responses - d.positive - d.negative), 0) || 0}
+                    ],
+                    backgroundColor: [
+                        'rgba(46, 204, 113, 0.8)',
+                        'rgba(231, 76, 60, 0.8)', 
+                        'rgba(149, 165, 166, 0.8)'
+                    ]
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'bottom' }
+                }
+            }
+        });
+
+        // График удержания
+        const retentionCtx = document.getElementById('retentionChart').getContext('2d');
+        new Chart(retentionCtx, {
+            type: 'line',
+            data: {
+                labels: ${JSON.stringify(dropoffData?.map((d: any) => `День ${d.day}`) || ['День 2', 'День 3', 'День 4', 'День 5', 'День 6', 'День 7'])},
+                datasets: [{
+                    label: 'Удержание (%)',
+                    data: ${JSON.stringify(dropoffData?.map((d: any) => d.retention_rate) || [100, 85, 75, 70, 65, 60])},
+                    borderColor: 'rgba(255, 99, 132, 1)',
+                    backgroundColor: 'rgba(255, 99, 132, 0.1)',
+                    fill: true,
+                    tension: 0.4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    y: { 
+                        beginAtZero: true,
+                        max: 100,
+                        ticks: { callback: function(value) { return value + '%'; } }
+                    }
+                }
+            }
+        });
+    </script>
+</body>
+</html>`;
+
+      res.send(html);
+    } catch (error) {
+      console.error('❌ Ошибка аналитики:', error);
+      res.status(500).send(`Ошибка: ${error}`);
+    }
+  });
+
+  // ОТВЕТЫ ПОЛЬЗОВАТЕЛЕЙ с поиском и фильтрацией
+  this.app.get('/dashboard/responses', authenticate, async (req, res) => {
+    try {
+      const { day, search, limit = 50 } = req.query;
+      
+      const dayNumber = day ? parseInt(day as string) : undefined;
+      const limitNumber = parseInt(limit as string);
+      
+      const filters: any = { limit: limitNumber };
+      if (dayNumber) filters.day = dayNumber;
+      if (search) filters.keyword = search as string;
+      
+      const [responses, meaningfulResponses] = await Promise.all([
+        this.database.searchResponses(filters),
+        this.database.getMeaningfulResponses(10)
+      ]);
+
+      const html = `<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>💭 Ответы пользователей</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+            line-height: 1.6;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container { max-width: 1200px; margin: 0 auto; }
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            color: #667eea;
+            padding: 30px;
+            text-align: center;
+            margin-bottom: 30px;
+            border-radius: 15px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+        }
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .filters {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            align-items: end;
+        }
+        .filter-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+            color: #667eea;
+        }
+        .filter-group input, .filter-group select {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #e1e8ed;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+        .filter-group input:focus, .filter-group select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        .response-card {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            margin-bottom: 15px;
+            border-left: 5px solid #667eea;
+        }
+        .response-meta {
+            font-size: 0.9em;
+            color: #666;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .response-text {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 10px;
+            line-height: 1.5;
+        }
+        .action-btn {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            text-decoration: none;
+            display: inline-block;
+            margin: 8px 8px 8px 0;
+            transition: all 0.3s ease;
+            font-weight: 500;
+            cursor: pointer;
+        }
+        .action-btn:hover { 
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+        }
+        .highlight { background-color: yellow; }
+        .stats-summary {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>💭 Ответы пользователей</h1>
+            <p>Поиск и анализ ответов участников курса</p>
+        </div>
+
+        <form class="filters" method="GET">
+            <div class="filter-group">
+                <label>День курса</label>
+                <select name="day">
+                    <option value="">Все дни</option>
+                    ${[1,2,3,4,5,6,7].map((d: number) => `<option value="${d}" ${dayNumber === d ? 'selected' : ''}>День ${d}</option>`).join('')}
+                </select>
+            </div>
+            <div class="filter-group">
+                <label>Поиск по тексту</label>
+                <input type="text" name="search" value="${search || ''}" placeholder="Введите ключевое слово...">
+            </div>
+            <div class="filter-group">
+                <label>Количество</label>
+                <select name="limit">
+                    <option value="20" ${limitNumber === 20 ? 'selected' : ''}>20</option>
+                    <option value="50" ${limitNumber === 50 ? 'selected' : ''}>50</option>
+                    <option value="100" ${limitNumber === 100 ? 'selected' : ''}>100</option>
+                </select>
+            </div>
+            <div class="filter-group">
+                <button type="submit" class="action-btn">🔍 Искать</button>
+            </div>
+        </form>
+
+        <div class="stats-summary">
+            <strong>Найдено ответов: ${responses.length}</strong>
+            ${search ? `по запросу "${search}"` : ''}
+            ${dayNumber ? `за день ${dayNumber}` : ''}
+        </div>
+
+        ${meaningfulResponses.length > 0 ? `
+        <div class="response-card" style="border-left-color: #28a745;">
+            <h3 style="color: #28a745; margin-bottom: 15px;">🌟 Самые содержательные ответы</h3>
+            ${meaningfulResponses.slice(0, 3).map((r: any) => `
+                <div style="background: #e8f5e8; padding: 10px; margin: 10px 0; border-radius: 8px;">
+                    <strong>${r.name || 'Пользователь'}</strong> • День ${r.day} • ${r.text_length} символов<br>
+                    <em>"${r.response_text.substring(0, 100)}${r.response_text.length > 100 ? '...' : ''}"</em>
+                </div>
+            `).join('')}
+        </div>
+        ` : ''}
+
+        ${responses.map((response: any) => `
+        <div class="response-card">
+            <div class="response-meta">
+                <span><strong>${response.name || 'Пользователь'}</strong> • День ${response.day}</span>
+                <span>${new Date(response.created_at).toLocaleString('ru-RU')}</span>
+            </div>
+            <strong>Тип вопроса:</strong> ${response.question_type}
+            <div class="response-text">
+                ${search ? 
+                  response.response_text.replace(
+                    new RegExp(`(${search})`, 'gi'), 
+                    '<span class="highlight">$1</span>'
+                  ) : 
+                  response.response_text
+                }
+            </div>
+        </div>
+        `).join('')}
+
+        ${responses.length === 0 ? `
+        <div class="response-card" style="text-align: center; border-left-color: #ff6b6b;">
+            <h3>😔 Ответы не найдены</h3>
+            <p>Попробуйте изменить параметры поиска</p>
+        </div>
+        ` : ''}
+
+        <div style="text-align: center; margin-top: 30px;">
+            <a href="/dashboard" class="action-btn">🏠 На главную</a>
+            <a href="/dashboard/analytics" class="action-btn">📊 Аналитика</a>
+            <a href="/dashboard/export/responses" class="action-btn">📥 Экспорт CSV</a>
+        </div>
+    </div>
+</body>
+</html>`;
+
+      res.send(html);
+    } catch (error) {
+      console.error('❌ Ошибка страницы ответов:', error);
+      res.status(500).send(`Ошибка: ${error}`);
     }
   });
 

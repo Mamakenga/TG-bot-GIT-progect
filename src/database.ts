@@ -403,16 +403,39 @@ export class Database {
   }
 
   // НОВЫЙ МЕТОД: Расширенная статистика
-  async getDetailedStats(): Promise<any> {
-    const queries = {
-      usersByDay: `
+async getDetailedStats(): Promise<any> {
+  try {
+    // Проверяем существование поля is_paused
+    const checkColumn = await this.pool.query(`
+      SELECT column_name 
+      FROM information_schema.columns 
+      WHERE table_name = 'users' AND column_name = 'is_paused'
+    `);
+    
+    let usersByDayQuery: string;
+    if (checkColumn.rows.length > 0) {
+      // Если поле is_paused существует, используем его
+      usersByDayQuery = `
         SELECT current_day, COUNT(*) as count 
         FROM users 
         WHERE course_completed = false 
           AND (is_paused = false OR is_paused IS NULL)
         GROUP BY current_day 
         ORDER BY current_day
-      `,
+      `;
+    } else {
+      // Если поля is_paused нет, работаем без него
+      usersByDayQuery = `
+        SELECT current_day, COUNT(*) as count 
+        FROM users 
+        WHERE course_completed = false 
+        GROUP BY current_day 
+        ORDER BY current_day
+      `;
+    }
+
+    const queries = {
+      usersByDay: usersByDayQuery,
       completionRate: `
         SELECT 
           day,
@@ -435,14 +458,23 @@ export class Database {
 
     const results: any = {};
     for (const [key, query] of Object.entries(queries)) {
-      const result = await this.pool.query(query);
-      results[key] = result.rows;
+      try {
+        const result = await this.pool.query(query);
+        results[key] = result.rows;
+      } catch (error) {
+        console.error(`❌ Ошибка в запросе ${key}:`, error);
+        results[key] = [];
+      }
     }
 
     return results;
+  } catch (error) {
+    console.error('❌ Ошибка getDetailedStats:', error);
+    return { usersByDay: [], completionRate: [], dailyActivity: [] };
   }
+}
 
-  // Получить все ответы пользователей (ИСПРАВЛЕНО ДЛЯ POSTGRESQL)
+  // Получить все ответы пользователей
   async getAllResponses(): Promise<any[]> {
     const query = `
       SELECT 
@@ -462,7 +494,7 @@ export class Database {
     return result.rows;
   }
 
-  // Получить всех пользователей (ИСПРАВЛЕНО ДЛЯ POSTGRESQL)
+  // Получить всех пользователей 
   async getAllUsers(): Promise<any[]> {
     const query = `
       SELECT 
@@ -481,7 +513,7 @@ export class Database {
     return result.rows;
   }
 
-  // Получить ответы конкретного пользователя (ИСПРАВЛЕНО ДЛЯ POSTGRESQL)
+  // Получить ответы конкретного пользователя 
   async getUserResponses(telegramId: number): Promise<any[]> {
     const query = `
       SELECT * FROM responses r
@@ -494,7 +526,7 @@ export class Database {
     return result.rows;
   }
 
-  // Получить все алерты (ИСПРАВЛЕНО ДЛЯ POSTGRESQL)
+  // Получить все алерты
   async getAlerts(): Promise<any[]> {
     const query = `
       SELECT 
@@ -509,8 +541,6 @@ export class Database {
     const result = await this.pool.query(query);
     return result.rows;
   }
-
-  // === НОВЫЕ МЕТОДЫ ДЛЯ АНАЛИТИКИ ===
 
   // Анализ завершаемости по дням
   async getCompletionByDays(): Promise<any[]> {
@@ -680,9 +710,7 @@ export class Database {
     await this.pool.end();
   }
 
-  // === ДОПОЛНИТЕЛЬНЫЕ МЕТОДЫ ===
-
-  // Получить пользователя по userId (не telegramId)
+ // Получить пользователя по userId (не telegramId)
   async getUserById(userId: number): Promise<any> {
     const query = 'SELECT * FROM users WHERE id = $1';
     const result = await this.pool.query(query, [userId]);
