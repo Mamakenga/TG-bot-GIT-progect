@@ -192,54 +192,11 @@ class SelfCareBot {
       timezone: "Europe/Moscow"
     });
 
-    // ✅ НОВЫЙ CRON JOB: Проверка и отправка отложенных сообщений каждые 5 минут
-    cron.schedule('*/5 * * * *', async () => {
-      console.log('💬 Проверка отложенных сообщений...');
-      await this.processScheduledMessages();
-    }, {
-      timezone: "Europe/Moscow"
-    });
-
     console.log('⏰ Напоминания настроены на московское время:');
     console.log('   🌅 09:00 - Утренние сообщения');  
     console.log('   🌸 13:00 - Упражнения дня');
     console.log('   💝 16:00 - Фразы дня');
     console.log('   🌙 20:00 - Вечерние рефлексии');
-    console.log('   💬 каждые 5 мин - Отложенные сообщения обратной связи');
-  }
-
-  // ✅ НОВЫЙ МЕТОД: Обработка отложенных сообщений
-  private async processScheduledMessages(): Promise<void> {
-    try {
-      const pendingMessages = await this.database.getPendingScheduledMessages();
-      
-      if (pendingMessages.length === 0) {
-        return; // Нет сообщений для отправки
-      }
-
-      console.log(`📤 Найдено ${pendingMessages.length} отложенных сообщений для отправки`);
-
-      for (const message of pendingMessages) {
-        try {
-          // Отправляем сообщение
-          await this.bot.sendMessage(message.telegram_id, message.message_text);
-          
-          // Помечаем как отправленное
-          await this.database.markScheduledMessageSent(message.id);
-          
-          console.log(`✅ Отложенное сообщение отправлено пользователю ${message.telegram_id}`);
-          
-          // Небольшая задержка между отправками
-          await new Promise(resolve => setTimeout(resolve, 200));
-          
-        } catch (messageError) {
-          console.error(`❌ Ошибка отправки отложенного сообщения пользователю ${message.telegram_id}:`, messageError);
-          // Не помечаем как отправленное, попробуем в следующий раз
-        }
-      }
-    } catch (error) {
-      console.error('❌ Ошибка в processScheduledMessages:', error);
-    }
   }
 
   // ✅ ИСПРАВЛЕНО: Утром ТОЛЬКО текст, БЕЗ кнопок
@@ -421,13 +378,12 @@ private setupAdminRoutes(): void {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Еженедельный отчет - Забота о себе</title>
-    <link rel="icon" type="image/png" href="data:image/png;base64,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">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { 
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(135deg, #8B5CF6 0%, #EC4899 30%, #F59E0B 70%, #EF4444 100%);
-            color: #1E293B;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
             line-height: 1.6;
             min-height: 100vh;
             padding: 20px;
@@ -438,7 +394,7 @@ private setupAdminRoutes(): void {
         }
         .header {
             background: rgba(255, 255, 255, 0.95);
-            color: #1E293B;
+            color: #667eea;
             padding: 30px;
             text-align: center;
             margin-bottom: 30px;
@@ -448,7 +404,7 @@ private setupAdminRoutes(): void {
         .header h1 {
             font-size: 2.5em;
             margin-bottom: 10px;
-            background: linear-gradient(135deg, #8B5CF6, #EC4899);
+            background: linear-gradient(135deg, #667eea, #764ba2);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
         }
@@ -469,14 +425,14 @@ private setupAdminRoutes(): void {
             transform: translateY(-5px);
         }
         .stat-card h3 {
-            color: #1E293B;
+            color: #667eea;
             margin-bottom: 15px;
             font-size: 1.2em;
         }
         .big-number {
             font-size: 3em;
             font-weight: bold;
-            background: linear-gradient(135deg, #8B5CF6, #EC4899);
+            background: linear-gradient(135deg, #667eea, #764ba2);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             margin: 15px 0;
@@ -489,7 +445,7 @@ private setupAdminRoutes(): void {
             margin-bottom: 20px;
         }
         .action-btn {
-            background: linear-gradient(135deg, #8B5CF6, #EC4899);
+            background: linear-gradient(135deg, #667eea, #764ba2);
             color: white;
             padding: 12px 24px;
             border: none;
@@ -502,7 +458,7 @@ private setupAdminRoutes(): void {
         }
         .action-btn:hover { 
             transform: translateY(-2px);
-            box-shadow: 0 8px 20px rgba(139, 92, 246, 0.4);
+            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
         }
         .alert-badge {
             background: #ff6b6b;
@@ -518,7 +474,7 @@ private setupAdminRoutes(): void {
             border-radius: 15px;
             box-shadow: 0 8px 32px rgba(0,0,0,0.1);
             margin-bottom: 20px;
-            border-left: 5px solid #8B5CF6;
+            border-left: 5px solid #667eea;
         }
         .feature-list {
             list-style: none;
@@ -622,6 +578,1081 @@ private setupAdminRoutes(): void {
     }
   });
 
+  // Страница аналитики
+  this.app.get('/dashboard/analytics', authenticate, async (req, res) => {
+    try {
+      const stats = await this.database.getStats();
+      const html = `<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Аналитика - Забота о себе</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+            line-height: 1.6;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container { 
+            max-width: 1200px; 
+            margin: 0 auto;
+        }
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            color: #667eea;
+            padding: 30px;
+            text-align: center;
+            margin-bottom: 30px;
+            border-radius: 15px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+        }
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .info-card {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+            border-left: 5px solid #667eea;
+        }
+        .action-btn {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            text-decoration: none;
+            display: inline-block;
+            margin: 8px 8px 8px 0;
+            transition: all 0.3s ease;
+            font-weight: 500;
+        }
+        .action-btn:hover { 
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📊 Аналитика</h1>
+            <p>Глубокий анализ данных курса самосострадания</p>
+        </div>
+
+        <div class="info-card">
+            <h3>📈 Статистика курса</h3>
+            <p><strong>Всего пользователей:</strong> ${stats.totalUsers}</p>
+            <p><strong>Активных сегодня:</strong> ${stats.activeToday}</p>
+            <p><strong>Завершили курс:</strong> ${stats.completedCourse}</p>
+            <p style="margin-top: 15px;"><em>Детальная аналитика будет добавлена в следующих версиях</em></p>
+        </div>
+
+        <div class="info-card">
+            <h3>🚀 Планируемые функции аналитики</h3>
+            <ul>
+                <li>Графики завершаемости по дням</li>
+                <li>Эмоциональная динамика участников</li>
+                <li>Анализ самых эффективных упражнений</li>
+                <li>Временные паттерны активности</li>
+                <li>Прогнозирование отсева</li>
+            </ul>
+        </div>
+
+        <div style="text-align: center; margin-top: 30px;">
+            <a href="/dashboard" class="action-btn">🏠 Вернуться на главную</a>
+        </div>
+    </div>
+</body>
+</html>`;
+      res.send(html);
+    } catch (error) {
+      res.status(500).send(`Ошибка: ${error}`);
+    }
+  });
+
+  // Страница ответов пользователей
+  this.app.get('/dashboard/responses', authenticate, async (req, res) => {
+    try {
+      const responses = await this.database.getAllResponses();
+      
+      const html = `<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ответы пользователей - Забота о себе</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+            line-height: 1.6;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container { 
+            max-width: 1200px; 
+            margin: 0 auto;
+        }
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            color: #667eea;
+            padding: 30px;
+            text-align: center;
+            margin-bottom: 30px;
+            border-radius: 15px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+        }
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .response-card {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            margin-bottom: 15px;
+            border-left: 5px solid #667eea;
+        }
+        .response-meta {
+            font-size: 0.9em;
+            color: #666;
+            margin-bottom: 10px;
+        }
+        .response-text {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 10px;
+        }
+        .action-btn {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            text-decoration: none;
+            display: inline-block;
+            margin: 8px 8px 8px 0;
+            transition: all 0.3s ease;
+            font-weight: 500;
+        }
+        .action-btn:hover { 
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>💭 Ответы пользователей</h1>
+            <p>Поиск и анализ свободных ответов участников курса</p>
+        </div>
+
+        <div style="text-align: center; margin-bottom: 30px;">
+            <a href="/dashboard/export/responses" class="action-btn">📄 Экспорт в CSV</a>
+            <a href="/dashboard" class="action-btn">🏠 На главную</a>
+        </div>
+
+        ${responses.slice(0, 20).map(response => `
+        <div class="response-card">
+            <div class="response-meta">
+                <strong>${response.first_name || response.name || 'Пользователь'}</strong> • 
+                День ${response.day} • 
+                ${new Date(response.created_at).toLocaleString('ru-RU')}
+            </div>
+            <strong>Вопрос:</strong> ${response.question || response.question_type}
+            <div class="response-text">
+                ${response.answer || response.response_text || 'Ответ не указан'}
+            </div>
+        </div>
+        `).join('')}
+
+        ${responses.length > 20 ? `
+        <div style="text-align: center; margin-top: 30px;">
+            <p style="color: rgba(255, 255, 255, 0.8);">
+                Показаны первые 20 ответов из ${responses.length}. 
+                <a href="/dashboard/export/responses" style="color: white;">Скачайте CSV</a> для полного списка.
+            </p>
+        </div>
+        ` : ''}
+    </div>
+</body>
+</html>`;
+      res.send(html);
+    } catch (error) {
+      res.status(500).send(`Ошибка: ${error}`);
+    }
+  });
+
+  // СТРАНИЦА АЛЕРТОВ БЕЗОПАСНОСТИ
+  this.app.get('/dashboard/alerts', authenticate, async (req, res) => {
+    try {
+      const alerts = await this.database.getAlerts();
+      const unhandledCount = alerts.filter((alert: any) => !alert.handled).length;
+
+      const html = `<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🚨 Алерты безопасности</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+            line-height: 1.6;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container { max-width: 1200px; margin: 0 auto; }
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            color: #667eea;
+            padding: 30px;
+            text-align: center;
+            margin-bottom: 30px;
+            border-radius: 15px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+        }
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .alert-card {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            margin-bottom: 15px;
+            border-left: 5px solid ${unhandledCount > 0 ? '#ff6b6b' : '#28a745'};
+        }
+        .alert-card.unhandled {
+            border-left-color: #ff6b6b;
+            background: rgba(255, 107, 107, 0.05);
+        }
+        .alert-card.handled {
+            border-left-color: #28a745;
+            background: rgba(40, 167, 69, 0.05);
+        }
+        .alert-meta {
+            font-size: 0.9em;
+            color: #666;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .alert-trigger {
+            background: #fff3cd;
+            color: #856404;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.8em;
+            font-weight: bold;
+        }
+        .alert-message {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 10px 0;
+            line-height: 1.5;
+            border-left: 3px solid #ff6b6b;
+        }
+        .action-btn {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            text-decoration: none;
+            display: inline-block;
+            margin: 4px 4px 4px 0;
+            transition: all 0.3s ease;
+            font-weight: 500;
+            cursor: pointer;
+            font-size: 0.9em;
+        }
+        .action-btn:hover { 
+            transform: translateY(-2px);
+            box-shadow: 0 6px 15px rgba(102, 126, 234, 0.4);
+        }
+        .mark-handled-btn {
+            background: linear-gradient(135deg, #28a745, #20c997);
+        }
+        .mark-handled-btn:hover {
+            box-shadow: 0 6px 15px rgba(40, 167, 69, 0.4);
+        }
+        .stats-summary {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .urgent-notice {
+            background: rgba(255, 107, 107, 0.1);
+            border: 2px solid #ff6b6b;
+            padding: 20px;
+            border-radius: 15px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .status-badge {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.8em;
+            font-weight: bold;
+        }
+        .status-handled {
+            background: #d4edda;
+            color: #155724;
+        }
+        .status-unhandled {
+            background: #f8d7da;
+            color: #721c24;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚨 Алерты безопасности</h1>
+            <p>Мониторинг критических сообщений участников курса</p>
+        </div>
+
+        ${unhandledCount > 0 ? `
+        <div class="urgent-notice">
+            <h3 style="color: #ff6b6b; margin-bottom: 10px;">⚠️ ВНИМАНИЕ!</h3>
+            <p><strong>${unhandledCount} необработанных алертов</strong> требуют вашего внимания</p>
+            <p style="font-size: 0.9em; margin-top: 8px;">Рекомендуется связаться с пользователями для предоставления поддержки</p>
+        </div>
+        ` : ''}
+
+        <div class="stats-summary">
+            <strong>Всего алертов: ${alerts.length}</strong> • 
+            <span style="color: #ff6b6b;">Необработанных: ${unhandledCount}</span> • 
+            <span style="color: #28a745;">Обработанных: ${alerts.length - unhandledCount}</span>
+        </div>
+
+        ${alerts.length === 0 ? `
+        <div class="alert-card" style="text-align: center; border-left-color: #28a745;">
+            <h3 style="color: #28a745;">✅ Алертов нет</h3>
+            <p>Все участники курса чувствуют себя хорошо!</p>
+        </div>
+        ` : ''}
+
+        ${alerts.map((alert: any) => `
+        <div class="alert-card ${alert.handled ? 'handled' : 'unhandled'}">
+            <div class="alert-meta">
+                <div>
+                    <strong>${alert.first_name || 'Пользователь'}</strong> 
+                    • ID: ${alert.telegram_id || alert.username}
+                    • ${new Date(alert.created_at).toLocaleString('ru-RU')}
+                </div>
+                <div>
+                    <span class="alert-trigger">Триггер: ${alert.trigger_word || 'общий'}</span>
+                    <span class="status-badge ${alert.handled ? 'status-handled' : 'status-unhandled'}">
+                        ${alert.handled ? '✅ Обработан' : '⚠️ Требует внимания'}
+                    </span>
+                </div>
+            </div>
+            
+            <div class="alert-message">
+                <strong>Сообщение пользователя:</strong><br>
+                "${alert.message}"
+            </div>
+            
+            <div style="margin-top: 15px;">
+                ${!alert.handled ? `
+                <button onclick="markAsHandled(${alert.id})" class="action-btn mark-handled-btn">
+                    ✅ Пометить как обработанный
+                </button>
+                ` : ''}
+                <a href="tg://user?id=${alert.telegram_id}" class="action-btn">
+                    💬 Написать в Telegram
+                </a>
+                <button onclick="copyToClipboard('${alert.message.replace(/'/g, "\\'")}', '${alert.first_name}')" class="action-btn">
+                    📋 Копировать
+                </button>
+            </div>
+        </div>
+        `).join('')}
+
+        <div style="text-align: center; margin-top: 30px;">
+            <a href="/dashboard" class="action-btn">🏠 На главную</a>
+            <a href="/dashboard/export/alerts" class="action-btn">📥 Экспорт алертов CSV</a>
+        </div>
+
+        <div style="background: rgba(255, 255, 255, 0.95); padding: 20px; border-radius: 15px; margin-top: 20px; border-left: 5px solid #17a2b8;">
+            <h3 style="color: #17a2b8; margin-bottom: 10px;">📞 Контакты экстренной помощи</h3>
+            <p><strong>Телефон доверия:</strong> 8-800-2000-122 (бесплатно, круглосуточно)</p>
+            <p><strong>Экстренная помощь:</strong> 112</p>
+            <p><strong>Психолог проекта:</strong> @amalinovskaya_psy</p>
+        </div>
+    </div>
+
+    <script>
+        async function markAsHandled(alertId) {
+            try {
+                const response = await fetch('/dashboard/alerts/mark-handled', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': '${req.headers.authorization}'
+                    },
+                    body: JSON.stringify({ alertId })
+                });
+                
+                if (response.ok) {
+                    location.reload();
+                } else {
+                    alert('Ошибка при обновлении статуса алерта');
+                }
+            } catch (error) {
+                alert('Ошибка сети: ' + error.message);
+            }
+        }
+
+        function copyToClipboard(message, userName) {
+            const text = \`Алерт от \${userName}:\\n"\${message}"\`;
+            navigator.clipboard.writeText(text).then(() => {
+                alert('Скопировано в буфер обмена');
+            }).catch(() => {
+                alert('Ошибка копирования');
+            });
+        }
+    </script>
+</body>
+</html>`;
+
+      res.send(html);
+    } catch (error) {
+      console.error('❌ Ошибка страницы алертов:', error);
+      res.status(500).send(`Ошибка: ${error}`);
+    }
+  });
+
+  // API для отметки алерта как обработанного
+  this.app.post('/dashboard/alerts/mark-handled', authenticate, async (req, res) => {
+    try {
+      const { alertId } = req.body;
+      
+      if (!alertId) {
+        return res.status(400).json({ error: 'alertId is required' });
+      }
+
+      await this.database.markAlertAsHandled(parseInt(alertId));
+      res.json({ success: true });
+      
+      console.log(`✅ Алерт ${alertId} помечен как обработанный`);
+    } catch (error) {
+      console.error('❌ Ошибка отметки алерта:', error);
+      res.status(500).json({ error: 'Database error' });
+    }
+  });
+
+  // ЭФФЕКТИВНОСТЬ УПРАЖНЕНИЙ  
+  this.app.get('/dashboard/exercises', authenticate, async (req, res) => {
+    try {
+      const [engagement, emotionalImpact, retention, effectiveness] = await Promise.all([
+        this.database.getExerciseEngagement(),
+        this.database.getExerciseEmotionalImpact(), 
+        this.database.getExerciseRetention(),
+        this.database.getExerciseEffectivenessRating()
+      ]);
+
+      const html = `<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎯 Эффективность упражнений</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+            line-height: 1.6;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container { max-width: 1400px; margin: 0 auto; }
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            color: #667eea;
+            padding: 30px;
+            text-align: center;
+            margin-bottom: 30px;
+            border-radius: 15px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+        }
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .grid-2 {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(450px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .grid-3 {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .chart-card, .ranking-card {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+        }
+        .chart-container { position: relative; height: 300px; margin-top: 15px; }
+        .ranking-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+        .ranking-table th, .ranking-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #e1e8ed;
+        }
+        .ranking-table th {
+            background: #f8f9fa;
+            font-weight: 600;
+            color: #667eea;
+        }
+        .score-badge {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 0.9em;
+        }
+        .score-excellent { background: #d4edda; color: #155724; }
+        .score-good { background: #d1ecf1; color: #0c5460; }
+        .score-average { background: #fff3cd; color: #856404; }
+        .score-poor { background: #f8d7da; color: #721c24; }
+        .metric-card {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        .metric-number {
+            font-size: 2em;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+        .action-btn {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            text-decoration: none;
+            display: inline-block;
+            margin: 8px 8px 8px 0;
+            transition: all 0.3s ease;
+            font-weight: 500;
+        }
+        .action-btn:hover { 
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+        }
+        .insights {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+            border-left: 5px solid #28a745;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎯 Анализ эффективности упражнений</h1>
+            <p>Комплексная оценка воздействия упражнений курса самосострадания</p>
+        </div>
+
+        <div class="grid-3">
+            <div class="metric-card">
+                <h3 style="color: #667eea;">📊 Средняя вовлеченность</h3>
+                <div class="metric-number" style="color: #28a745;">
+                    ${engagement.length > 0 ? Math.round(engagement.reduce((sum: number, e: any) => sum + (e.engagement_rate || 0), 0) / engagement.length) : 0}%
+                </div>
+                <p>участников отвечают на упражнения</p>
+            </div>
+            <div class="metric-card">
+                <h3 style="color: #667eea;">🚀 Готовность к действию</h3>
+                <div class="metric-number" style="color: #17a2b8;">
+                    ${engagement.length > 0 ? Math.round(engagement.reduce((sum: number, e: any) => sum + (e.readiness_rate || 0), 0) / engagement.length) : 0}%
+                </div>
+                <p>выбирают "готова попробовать"</p>
+            </div>
+            <div class="metric-card">
+                <h3 style="color: #667eea;">💡 Запросы помощи</h3>
+                <div class="metric-number" style="color: #ffc107;">
+                    ${engagement.length > 0 ? Math.round(engagement.reduce((sum: number, e: any) => sum + (e.help_request_rate || 0), 0) / engagement.length) : 0}%
+                </div>
+                <p>нуждаются в дополнительной поддержке</p>
+            </div>
+        </div>
+
+        <div class="grid-2">
+            <div class="chart-card">
+                <h3>📈 Вовлеченность по дням</h3>
+                <div class="chart-container">
+                    <canvas id="engagementChart"></canvas>
+                </div>
+            </div>
+            <div class="chart-card">
+                <h3>💭 Эмоциональный отклик</h3>
+                <div class="chart-container">
+                    <canvas id="emotionalChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div class="ranking-card">
+            <h3>🏆 Рейтинг эффективности упражнений</h3>
+            <p style="margin-bottom: 15px; color: #666;">
+                Оценка основана на: участии (30%), готовности (30%), качестве ответов (20%), простоте выполнения (20%)
+            </p>
+            <table class="ranking-table">
+                <thead>
+                    <tr>
+                        <th>Место</th>
+                        <th>Упражнение</th>
+                        <th>Эффективность</th>
+                        <th>Участие</th>
+                        <th>Готовность</th>
+                        <th>Качество ответов</th>
+                        <th>Простота</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${effectiveness.map((ex: any, index: number) => {
+                      const score = ex.effectiveness_score || 0;
+                      const scoreClass = score >= 80 ? 'score-excellent' : 
+                                       score >= 65 ? 'score-good' : 
+                                       score >= 50 ? 'score-average' : 'score-poor';
+                      return `
+                        <tr>
+                            <td><strong>${index + 1}</strong></td>
+                            <td><strong>День ${ex.day}:</strong> ${ex.exercise_name}</td>
+                            <td><span class="score-badge ${scoreClass}">${score.toFixed(1)}</span></td>
+                            <td>${(ex.participation_rate || 0).toFixed(1)}%</td>
+                            <td>${(ex.readiness_rate || 0).toFixed(1)}%</td>
+                            <td>${(ex.avg_response_quality || 0).toFixed(0)} сим.</td>
+                            <td>${(100 - (ex.help_request_rate || 0)).toFixed(1)}%</td>
+                        </tr>
+                      `;
+                    }).join('')}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="grid-2">
+            <div class="chart-card">
+                <h3>🔄 Удержание после упражнений</h3>
+                <div class="chart-container">
+                    <canvas id="retentionChart"></canvas>
+                </div>
+            </div>
+            <div class="chart-card">
+                <h3>📊 Готовность vs Помощь</h3>
+                <div class="chart-container">
+                    <canvas id="readinessChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div class="insights">
+            <h3>💡 Ключевые инсайты и рекомендации</h3>
+            <ul>
+                ${effectiveness.length > 0 ? `
+                <li><strong>Самое эффективное упражнение:</strong> ${effectiveness[0]?.exercise_name} (День ${effectiveness[0]?.day}) с рейтингом ${effectiveness[0]?.effectiveness_score?.toFixed(1)}</li>
+                <li><strong>Требует доработки:</strong> ${effectiveness[effectiveness.length - 1]?.exercise_name} (День ${effectiveness[effectiveness.length - 1]?.day}) - низкий рейтинг ${effectiveness[effectiveness.length - 1]?.effectiveness_score?.toFixed(1)}</li>
+                ` : ''}
+                <li><strong>Общий тренд:</strong> ${engagement.reduce((sum: number, e: any) => sum + (e.help_request_rate || 0), 0) / engagement.length > 20 ? 'Участники часто просят помощь - стоит упростить инструкции' : 'Упражнения понятны большинству участников'}</li>
+                <li><strong>Активность:</strong> ${emotionalImpact.reduce((sum: number, e: any) => sum + (e.positive_rate || 0), 0) / emotionalImpact.length > 60 ? 'Позитивная реакция участников' : 'Смешанные реакции - стоит проанализировать отзывы'}</li>
+            </ul>
+        </div>
+
+        <div style="text-align: center; margin-top: 30px;">
+            <a href="/dashboard" class="action-btn">🏠 На главную</a>
+            <a href="/dashboard/responses" class="action-btn">💭 Ответы пользователей</a>
+            <a href="/dashboard/export/responses" class="action-btn">📥 Экспорт CSV</a>
+        </div>
+    </div>
+
+    <script>
+        // График вовлеченности
+        const engagementCtx = document.getElementById('engagementChart').getContext('2d');
+        new Chart(engagementCtx, {
+            type: 'line',
+            data: {
+                labels: ['День 1', 'День 2', 'День 3', 'День 4', 'День 5', 'День 6', 'День 7'],
+                datasets: [{
+                    label: 'Вовлеченность (%)',
+                    data: ${JSON.stringify(engagement.map((e: any) => e.engagement_rate || 0))},
+                    borderColor: '#667eea',
+                    backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                    fill: true,
+                    tension: 0.4
+                }, {
+                    label: 'Готовность (%)',
+                    data: ${JSON.stringify(engagement.map((e: any) => e.readiness_rate || 0))},
+                    borderColor: '#28a745',
+                    backgroundColor: 'rgba(40, 167, 69, 0.1)',
+                    fill: false,
+                    tension: 0.4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: { y: { beginAtZero: true, max: 100 } }
+            }
+        });
+
+        // График эмоций
+        const emotionalCtx = document.getElementById('emotionalChart').getContext('2d');
+        new Chart(emotionalCtx, {
+            type: 'bar',
+            data: {
+                labels: ['День 1', 'День 2', 'День 3', 'День 4', 'День 5', 'День 6', 'День 7'],
+                datasets: [{
+                    label: 'Позитивные (%)',
+                    data: ${JSON.stringify(emotionalImpact.map((e: any) => e.positive_rate || 0))},
+                    backgroundColor: '#28a745'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: { y: { beginAtZero: true, max: 100 } }
+            }
+        });
+
+        // График удержания
+        const retentionCtx = document.getElementById('retentionChart').getContext('2d');
+        new Chart(retentionCtx, {
+            type: 'line',
+            data: {
+                labels: ${JSON.stringify(retention.map((r: any) => `День ${r.day}`))},
+                datasets: [{
+                    label: 'Удержание (%)',
+                    data: ${JSON.stringify(retention.map((r: any) => r.retention_rate || 0))},
+                    borderColor: '#ff6b6b',
+                    backgroundColor: 'rgba(255, 107, 107, 0.1)',
+                    fill: true,
+                    tension: 0.4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: { y: { beginAtZero: true, max: 100 } }
+            }
+        });
+
+        // График готовности vs помощи
+        const readinessCtx = document.getElementById('readinessChart').getContext('2d');
+        new Chart(readinessCtx, {
+            type: 'bar',
+            data: {
+                labels: ['День 1', 'День 2', 'День 3', 'День 4', 'День 5', 'День 6', 'День 7'],
+                datasets: [{
+                    label: 'Готовы попробовать (%)',
+                    data: ${JSON.stringify(engagement.map((e: any) => e.readiness_rate || 0))},
+                    backgroundColor: '#28a745'
+                }, {
+                    label: 'Нужна помощь (%)',
+                    data: ${JSON.stringify(engagement.map((e: any) => e.help_request_rate || 0))},
+                    backgroundColor: '#ffc107'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: { 
+                    y: { beginAtZero: true, max: 100 },
+                    x: { stacked: false }
+                }
+            }
+        });
+    </script>
+</body>
+</html>`;
+
+      res.send(html);
+    } catch (error) {
+      console.error('❌ Ошибка анализа упражнений:', error);
+      res.status(500).send(`Ошибка: ${error}`);
+    }
+  });
+
+  // ОТВЕТЫ ПОЛЬЗОВАТЕЛЕЙ с поиском и фильтрацией
+  this.app.get('/dashboard/responses', authenticate, async (req, res) => {
+    try {
+      const { day, search, limit = 200 } = req.query;
+      
+      const dayNumber = day ? parseInt(day as string) : undefined;
+      const limitNumber = parseInt(limit as string);
+      
+      const filters: any = { limit: limitNumber };
+      if (dayNumber) filters.day = dayNumber;
+      if (search) filters.keyword = search as string;
+      
+      const [responses, meaningfulResponses] = await Promise.all([
+        this.database.searchResponses(filters),
+        this.database.getMeaningfulResponses(10)
+      ]);
+
+      const html = `<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>💭 Ответы пользователей</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+            line-height: 1.6;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container { max-width: 1200px; margin: 0 auto; }
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            color: #667eea;
+            padding: 30px;
+            text-align: center;
+            margin-bottom: 30px;
+            border-radius: 15px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+        }
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .filters {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            align-items: end;
+        }
+        .filter-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+            color: #667eea;
+        }
+        .filter-group input, .filter-group select {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #e1e8ed;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+        .filter-group input:focus, .filter-group select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        .response-card {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            margin-bottom: 15px;
+            border-left: 5px solid #667eea;
+        }
+        .response-meta {
+            font-size: 0.9em;
+            color: #666;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .response-text {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 10px;
+            line-height: 1.5;
+        }
+        .action-btn {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            text-decoration: none;
+            display: inline-block;
+            margin: 8px 8px 8px 0;
+            transition: all 0.3s ease;
+            font-weight: 500;
+            cursor: pointer;
+        }
+        .action-btn:hover { 
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+        }
+        .highlight { background-color: yellow; }
+        .stats-summary {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>💭 Ответы пользователей</h1>
+            <p>Поиск и анализ ответов участников курса</p>
+        </div>
+
+        <form class="filters" method="GET">
+            <div class="filter-group">
+                <label>День курса</label>
+                <select name="day">
+                    <option value="">Все дни</option>
+                    ${[1,2,3,4,5,6,7].map((d: number) => `<option value="${d}" ${dayNumber === d ? 'selected' : ''}>День ${d}</option>`).join('')}
+                </select>
+            </div>
+            <div class="filter-group">
+                <label>Поиск по тексту</label>
+                <input type="text" name="search" value="${search || ''}" placeholder="Поиск в свободных ответах...">
+            </div>
+            <div class="filter-group">
+                <label>Количество</label>
+                <select name="limit">
+                    <option value="50" ${limitNumber === 50 ? 'selected' : ''}>50</option>
+                    <option value="100" ${limitNumber === 100 ? 'selected' : ''}>100</option>
+                    <option value="200" ${limitNumber === 200 ? 'selected' : ''}>200</option>
+                    <option value="500" ${limitNumber === 500 ? 'selected' : ''}>500</option>
+                </select>
+            </div>
+            <div class="filter-group">
+                <button type="submit" class="action-btn">🔍 Искать</button>
+            </div>
+        </form>
+
+        <div class="stats-summary">
+            <strong>Найдено свободных ответов: ${responses.length}</strong>
+            ${search ? `по запросу "${search}"` : ''}
+            ${dayNumber ? `за день ${dayNumber}` : ''}
+            <br><small style="color: #666;">Показываются только текстовые ответы (исключены нажатия кнопок)</small>
+        </div>
+
+        ${meaningfulResponses.length > 0 ? `
+        <div class="response-card" style="border-left-color: #28a745;">
+            <h3 style="color: #28a745; margin-bottom: 15px;">🌟 Самые содержательные свободные ответы</h3>
+            ${meaningfulResponses.slice(0, 3).map((r: any) => `
+                <div style="background: #e8f5e8; padding: 10px; margin: 10px 0; border-radius: 8px;">
+                    <strong>${r.name || 'Пользователь'}</strong> • День ${r.day} • ${r.text_length} символов<br>
+                    <em>"${r.response_text.substring(0, 100)}${r.response_text.length > 100 ? '...' : ''}"</em>
+                </div>
+            `).join('')}
+        </div>
+        ` : ''}
+
+        ${responses.map((response: any) => `
+        <div class="response-card">
+            <div class="response-meta">
+                <span><strong>${response.name || 'Пользователь'}</strong> • День ${response.day}</span>
+                <span>${new Date(response.created_at).toLocaleString('ru-RU')}</span>
+            </div>
+            <strong>Тип ответа:</strong> ${response.question_type === 'free_text' ? 'Свободный ответ' : response.question_type}
+            <div class="response-text">
+                ${search ? 
+                  response.response_text.replace(
+                    new RegExp(`(${search})`, 'gi'), 
+                    '<span class="highlight">$1</span>'
+                  ) : 
+                  response.response_text
+                }
+            </div>
+        </div>
+        `).join('')}
+
+        ${responses.length === 0 ? `
+        <div class="response-card" style="text-align: center; border-left-color: #ff6b6b;">
+            <h3>😔 Ответы не найдены</h3>
+            <p>Попробуйте изменить параметры поиска</p>
+        </div>
+        ` : ''}
+
+        <div style="text-align: center; margin-top: 30px;">
+            <a href="/dashboard" class="action-btn">🏠 На главную</a>
+            <a href="/dashboard/responses" class="action-btn">💭 Ответы пользователей</a>
+            <a href="/dashboard/export/responses" class="action-btn">📥 Экспорт CSV</a>
+        </div>
+    </div>
+</body>
+</html>`;
+
+      res.send(html);
+    } catch (error) {
+      console.error('❌ Ошибка страницы ответов:', error);
+      res.status(500).send(`Ошибка: ${error}`);
+    }
+  });
+
   // Главная страница дашборда
   this.app.get('/dashboard', authenticate, async (req, res) => {
     try {
@@ -635,13 +1666,12 @@ private setupAdminRoutes(): void {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Дашборд бота "Забота о себе"</title>
-    <link rel="icon" type="image/png" href="data:image/png;base64,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">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { 
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(135deg, #8B5CF6 0%, #EC4899 30%, #F59E0B 70%, #EF4444 100%);
-            color: #1E293B;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
             line-height: 1.6;
             min-height: 100vh;
             padding: 20px;
@@ -652,7 +1682,7 @@ private setupAdminRoutes(): void {
         }
         .header {
             background: rgba(255, 255, 255, 0.95);
-            color: #1E293B;
+            color: #667eea;
             padding: 30px;
             text-align: center;
             margin-bottom: 30px;
@@ -662,7 +1692,7 @@ private setupAdminRoutes(): void {
         .header h1 {
             font-size: 2.5em;
             margin-bottom: 10px;
-            background: linear-gradient(135deg, #8B5CF6, #EC4899);
+            background: linear-gradient(135deg, #667eea, #764ba2);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
         }
@@ -678,16 +1708,16 @@ private setupAdminRoutes(): void {
             border-radius: 15px;
             text-align: center;
             text-decoration: none;
-            color: #1E293B;
+            color: #333;
             transition: all 0.3s ease;
             box-shadow: 0 8px 32px rgba(0,0,0,0.1);
         }
         .nav-card:hover {
             transform: translateY(-5px);
-            box-shadow: 0 12px 40px rgba(139, 92, 246, 0.2);
+            box-shadow: 0 12px 40px rgba(102, 126, 234, 0.2);
         }
         .nav-card h3 {
-            color: #1E293B;
+            color: #667eea;
             margin-bottom: 10px;
             font-size: 1.3em;
         }
@@ -708,14 +1738,14 @@ private setupAdminRoutes(): void {
             transform: translateY(-5px);
         }
         .stat-card h3 {
-            color: #1E293B;
+            color: #667eea;
             margin-bottom: 15px;
             font-size: 1.2em;
         }
         .big-number {
             font-size: 3em;
             font-weight: bold;
-            background: linear-gradient(135deg, #8B5CF6, #EC4899);
+            background: linear-gradient(135deg, #667eea, #764ba2);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             margin: 15px 0;
@@ -939,967 +1969,6 @@ private setupAdminRoutes(): void {
       res.status(500).send(`Ошибка экспорта: ${error}`);
     }
   });
-
-  // СТРАНИЦА АЛЕРТОВ БЕЗОПАСНОСТИ
-  this.app.get('/dashboard/alerts', authenticate, async (req, res) => {
-    try {
-      const alerts = await this.database.getAlerts();
-      const unhandledCount = alerts.filter((alert: any) => !alert.handled).length;
-
-      const html = `<!DOCTYPE html>
-<html lang="ru">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🚨 Алерты безопасности</title>
-    <link rel="icon" type="image/png" href="data:image/png;base64,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">
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { 
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(135deg, #8B5CF6 0%, #EC4899 30%, #F59E0B 70%, #EF4444 100%);
-            color: #1E293B;
-            line-height: 1.6;
-            min-height: 100vh;
-            padding: 20px;
-        }
-        .container { max-width: 1200px; margin: 0 auto; }
-        .header {
-            background: rgba(255, 255, 255, 0.95);
-            color: #1E293B;
-            padding: 30px;
-            text-align: center;
-            margin-bottom: 30px;
-            border-radius: 15px;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
-        }
-        .header h1 {
-            font-size: 2.5em;
-            margin-bottom: 10px;
-            background: linear-gradient(135deg, #8B5CF6, #EC4899);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-        .alert-card {
-            background: rgba(255, 255, 255, 0.95);
-            padding: 20px;
-            border-radius: 15px;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
-            margin-bottom: 15px;
-            border-left: 5px solid ${unhandledCount > 0 ? '#ff6b6b' : '#28a745'};
-        }
-        .alert-card.unhandled {
-            border-left-color: #ff6b6b;
-            background: rgba(255, 107, 107, 0.05);
-        }
-        .alert-card.handled {
-            border-left-color: #28a745;
-            background: rgba(40, 167, 69, 0.05);
-        }
-        .alert-meta {
-            font-size: 0.9em;
-            color: #1E293B;
-            margin-bottom: 10px;
-            display: flex;
-            justify-content: space-between;
-            flex-wrap: wrap;
-            gap: 10px;
-        }
-        .alert-trigger {
-            background: #fff3cd;
-            color: #856404;
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-size: 0.8em;
-            font-weight: bold;
-        }
-        .alert-message {
-            background: #f8f9fa;
-            padding: 15px;
-            border-radius: 8px;
-            margin: 10px 0;
-            line-height: 1.5;
-            border-left: 3px solid #ff6b6b;
-        }
-        .action-btn {
-            background: linear-gradient(135deg, #8B5CF6, #EC4899);
-            color: white;
-            padding: 8px 16px;
-            border: none;
-            border-radius: 6px;
-            text-decoration: none;
-            display: inline-block;
-            margin: 4px 4px 4px 0;
-            transition: all 0.3s ease;
-            font-weight: 500;
-            cursor: pointer;
-            font-size: 0.9em;
-        }
-        .action-btn:hover { 
-            transform: translateY(-2px);
-            box-shadow: 0 6px 15px rgba(139, 92, 246, 0.4);
-        }
-        .mark-handled-btn {
-            background: linear-gradient(135deg, #28a745, #20c997);
-        }
-        .mark-handled-btn:hover {
-            box-shadow: 0 6px 15px rgba(40, 167, 69, 0.4);
-        }
-        .stats-summary {
-            background: rgba(255, 255, 255, 0.95);
-            padding: 20px;
-            border-radius: 15px;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
-            margin-bottom: 20px;
-            text-align: center;
-        }
-        .urgent-notice {
-            background: rgba(255, 107, 107, 0.1);
-            border: 2px solid #ff6b6b;
-            padding: 20px;
-            border-radius: 15px;
-            margin-bottom: 20px;
-            text-align: center;
-        }
-        .status-badge {
-            padding: 4px 12px;
-            border-radius: 20px;
-            font-size: 0.8em;
-            font-weight: bold;
-        }
-        .status-handled {
-            background: #d4edda;
-            color: #155724;
-        }
-        .status-unhandled {
-            background: #f8d7da;
-            color: #721c24;
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <h1>🚨 Алерты безопасности</h1>
-            <p>Мониторинг критических сообщений участников курса</p>
-        </div>
-
-        ${unhandledCount > 0 ? `
-        <div class="urgent-notice">
-            <h3 style="color: #ff6b6b; margin-bottom: 10px;">⚠️ ВНИМАНИЕ!</h3>
-            <p><strong>${unhandledCount} необработанных алертов</strong> требуют вашего внимания</p>
-            <p style="font-size: 0.9em; margin-top: 8px;">Рекомендуется связаться с пользователями для предоставления поддержки</p>
-        </div>
-        ` : ''}
-
-        <div class="stats-summary">
-            <strong>Всего алертов: ${alerts.length}</strong> • 
-            <span style="color: #ff6b6b;">Необработанных: ${unhandledCount}</span> • 
-            <span style="color: #28a745;">Обработанных: ${alerts.length - unhandledCount}</span>
-        </div>
-
-        ${alerts.length === 0 ? `
-        <div class="alert-card" style="text-align: center; border-left-color: #28a745;">
-            <h3 style="color: #28a745;">✅ Алертов нет</h3>
-            <p>Все участники курса чувствуют себя хорошо!</p>
-        </div>
-        ` : ''}
-
-        ${alerts.map((alert: any) => `
-        <div class="alert-card ${alert.handled ? 'handled' : 'unhandled'}">
-            <div class="alert-meta">
-                <div>
-                    <strong>${alert.first_name || 'Пользователь'}</strong> 
-                    • ID: ${alert.telegram_id || alert.username}
-                    • ${new Date(alert.created_at).toLocaleString('ru-RU')}
-                </div>
-                <div>
-                    <span class="alert-trigger">Триггер: ${alert.trigger_word || 'общий'}</span>
-                    <span class="status-badge ${alert.handled ? 'status-handled' : 'status-unhandled'}">
-                        ${alert.handled ? '✅ Обработан' : '⚠️ Требует внимания'}
-                    </span>
-                </div>
-            </div>
-            
-            <div class="alert-message">
-                <strong>Сообщение пользователя:</strong><br>
-                "${alert.message}"
-            </div>
-            
-            <div style="margin-top: 15px;">
-                ${!alert.handled ? `
-                <button onclick="markAsHandled(${alert.id})" class="action-btn mark-handled-btn">
-                    ✅ Пометить как обработанный
-                </button>
-                ` : ''}
-                <a href="tg://user?id=${alert.telegram_id}" class="action-btn">
-                    💬 Написать в Telegram
-                </a>
-                <button onclick="copyToClipboard('${alert.message.replace(/'/g, "\\'")}', '${alert.first_name}')" class="action-btn">
-                    📋 Копировать
-                </button>
-            </div>
-        </div>
-        `).join('')}
-
-        <div style="text-align: center; margin-top: 30px;">
-            <a href="/dashboard" class="action-btn">🏠 На главную</a>
-            <a href="/dashboard/export/alerts" class="action-btn">📥 Экспорт алертов CSV</a>
-        </div>
-
-        <div style="background: rgba(255, 255, 255, 0.95); padding: 20px; border-radius: 15px; margin-top: 20px; border-left: 5px solid #8B5CF6;">
-            <h3 style="color: #8B5CF6; margin-bottom: 10px;">📞 Контакты экстренной помощи</h3>
-            <p><strong>Телефон доверия:</strong> 8-800-2000-122 (бесплатно, круглосуточно)</p>
-            <p><strong>Экстренная помощь:</strong> 112</p>
-            <p><strong>Психолог проекта:</strong> @amalinovskaya_psy</p>
-        </div>
-    </div>
-
-    <script>
-        async function markAsHandled(alertId) {
-            try {
-                const response = await fetch('/dashboard/alerts/mark-handled', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': '${req.headers.authorization}'
-                    },
-                    body: JSON.stringify({ alertId })
-                });
-                
-                if (response.ok) {
-                    location.reload();
-                } else {
-                    alert('Ошибка при обновлении статуса алерта');
-                }
-            } catch (error) {
-                alert('Ошибка сети: ' + error.message);
-            }
-        }
-
-        function copyToClipboard(message, userName) {
-            const text = \`Алерт от \${userName}:\\n"\${message}"\`;
-            navigator.clipboard.writeText(text).then(() => {
-                alert('Скопировано в буфер обмена');
-            }).catch(() => {
-                alert('Ошибка копирования');
-            });
-        }
-    </script>
-</body>
-</html>`;
-
-      res.send(html);
-    } catch (error) {
-      console.error('❌ Ошибка страницы алертов:', error);
-      res.status(500).send(`Ошибка: ${error}`);
-    }
-  });
-
-  // API для отметки алерта как обработанного
-  this.app.post('/dashboard/alerts/mark-handled', authenticate, async (req, res) => {
-    try {
-      const { alertId } = req.body;
-      
-      if (!alertId) {
-        return res.status(400).json({ error: 'alertId is required' });
-      }
-
-      await this.database.markAlertAsHandled(parseInt(alertId));
-      res.json({ success: true });
-      
-      console.log(`✅ Алерт ${alertId} помечен как обработанный`);
-    } catch (error) {
-      console.error('❌ Ошибка отметки алерта:', error);
-      res.status(500).json({ error: 'Database error' });
-    }
-  });
-
-  // ЭФФЕКТИВНОСТЬ УПРАЖНЕНИЙ  
-  this.app.get('/dashboard/exercises', authenticate, async (req, res) => {
-    try {
-      const [engagement, emotionalImpact, retention, effectiveness] = await Promise.all([
-        this.database.getExerciseEngagement(),
-        this.database.getExerciseEmotionalImpact(), 
-        this.database.getExerciseRetention(),
-        this.database.getExerciseEffectivenessRating()
-      ]);
-
-      const html = `<!DOCTYPE html>
-<html lang="ru">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🎯 Эффективность упражнений</title>
-    <link rel="icon" type="image/png" href="data:image/png;base64,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">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { 
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(135deg, #8B5CF6 0%, #EC4899 30%, #F59E0B 70%, #EF4444 100%);
-            color: #1E293B;
-            line-height: 1.6;
-            min-height: 100vh;
-            padding: 20px;
-        }
-        .container { max-width: 1400px; margin: 0 auto; }
-        .header {
-            background: rgba(255, 255, 255, 0.95);
-            color: #1E293B;
-            padding: 30px;
-            text-align: center;
-            margin-bottom: 30px;
-            border-radius: 15px;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
-        }
-        .header h1 {
-            font-size: 2.5em;
-            margin-bottom: 10px;
-            background: linear-gradient(135deg, #8B5CF6, #EC4899);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-        .grid-2 {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(450px, 1fr));
-            gap: 20px;
-            margin-bottom: 30px;
-        }
-        .grid-3 {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
-            gap: 20px;
-            margin-bottom: 30px;
-        }
-        .chart-card, .ranking-card {
-            background: rgba(255, 255, 255, 0.95);
-            padding: 25px;
-            border-radius: 15px;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
-        }
-        .chart-container { position: relative; height: 300px; margin-top: 15px; }
-        .ranking-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 15px;
-        }
-        .ranking-table th, .ranking-table td {
-            padding: 12px;
-            text-align: left;
-            border-bottom: 1px solid #e1e8ed;
-        }
-        .ranking-table th {
-            background: #f8f9fa;
-            font-weight: 600;
-            color: #1E293B;
-        }
-        .score-badge {
-            padding: 4px 12px;
-            border-radius: 20px;
-            font-weight: bold;
-            font-size: 0.9em;
-        }
-        .score-excellent { background: #d4edda; color: #155724; }
-        .score-good { background: #d1ecf1; color: #0c5460; }
-        .score-average { background: #fff3cd; color: #856404; }
-        .score-poor { background: #f8d7da; color: #721c24; }
-        .metric-card {
-            background: rgba(255, 255, 255, 0.95);
-            padding: 20px;
-            border-radius: 15px;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
-            text-align: center;
-        }
-        .metric-number {
-            font-size: 2em;
-            font-weight: bold;
-            margin: 10px 0;
-            background: linear-gradient(135deg, #8B5CF6, #EC4899);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-        .action-btn {
-            background: linear-gradient(135deg, #8B5CF6, #EC4899);
-            color: white;
-            padding: 12px 24px;
-            border: none;
-            border-radius: 8px;
-            text-decoration: none;
-            display: inline-block;
-            margin: 8px 8px 8px 0;
-            transition: all 0.3s ease;
-            font-weight: 500;
-        }
-        .action-btn:hover { 
-            transform: translateY(-2px);
-            box-shadow: 0 8px 20px rgba(139, 92, 246, 0.4);
-        }
-        .insights {
-            background: rgba(255, 255, 255, 0.95);
-            padding: 25px;
-            border-radius: 15px;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
-            margin-bottom: 20px;
-            border-left: 5px solid #28a745;
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <h1>🎯 Анализ эффективности упражнений</h1>
-            <p>Комплексная оценка воздействия упражнений курса самосострадания</p>
-        </div>
-
-        <div class="grid-3">
-            <div class="metric-card">
-                <h3 style="color: #1E293B;">📊 Средняя вовлеченность</h3>
-                <div class="metric-number">
-                    ${engagement.length > 0 ? Math.round(engagement.reduce((sum: number, e: any) => sum + (e.engagement_rate || 0), 0) / engagement.length) : 0}%
-                </div>
-                <p>участников отвечают на упражнения</p>
-            </div>
-            <div class="metric-card">
-                <h3 style="color: #1E293B;">🚀 Готовность к действию</h3>
-                <div class="metric-number">
-                    ${engagement.length > 0 ? Math.round(engagement.reduce((sum: number, e: any) => sum + (e.readiness_rate || 0), 0) / engagement.length) : 0}%
-                </div>
-                <p>выбирают "готова попробовать"</p>
-            </div>
-            <div class="metric-card">
-                <h3 style="color: #1E293B;">💡 Запросы помощи</h3>
-                <div class="metric-number">
-                    ${engagement.length > 0 ? Math.round(engagement.reduce((sum: number, e: any) => sum + (e.help_request_rate || 0), 0) / engagement.length) : 0}%
-                </div>
-                <p>нуждаются в дополнительной поддержке</p>
-            </div>
-        </div>
-
-        <div class="grid-2">
-            <div class="chart-card">
-                <h3>📈 Вовлеченность по дням</h3>
-                <div class="chart-container">
-                    <canvas id="engagementChart"></canvas>
-                </div>
-            </div>
-            <div class="chart-card">
-                <h3>💭 Эмоциональный отклик</h3>
-                <div class="chart-container">
-                    <canvas id="emotionalChart"></canvas>
-                </div>
-            </div>
-        </div>
-
-        <div class="ranking-card">
-            <h3>🏆 Рейтинг эффективности упражнений</h3>
-            <p style="margin-bottom: 15px; color: #1E293B;">
-                Оценка основана на: участии (30%), готовности (30%), качестве ответов (20%), простоте выполнения (20%)
-            </p>
-            <table class="ranking-table">
-                <thead>
-                    <tr>
-                        <th>Место</th>
-                        <th>Упражнение</th>
-                        <th>Эффективность</th>
-                        <th>Участие</th>
-                        <th>Готовность</th>
-                        <th>Качество ответов</th>
-                        <th>Простота</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${effectiveness.map((ex: any, index: number) => {
-                      const score = ex.effectiveness_score || 0;
-                      const scoreClass = score >= 80 ? 'score-excellent' : 
-                                       score >= 65 ? 'score-good' : 
-                                       score >= 50 ? 'score-average' : 'score-poor';
-                      return `
-                        <tr>
-                            <td><strong>${index + 1}</strong></td>
-                            <td><strong>День ${ex.day}:</strong> ${ex.exercise_name}</td>
-                            <td><span class="score-badge ${scoreClass}">${score.toFixed(1)}</span></td>
-                            <td>${(ex.participation_rate || 0).toFixed(1)}%</td>
-                            <td>${(ex.readiness_rate || 0).toFixed(1)}%</td>
-                            <td>${(ex.avg_response_quality || 0).toFixed(0)} сим.</td>
-                            <td>${(100 - (ex.help_request_rate || 0)).toFixed(1)}%</td>
-                        </tr>
-                      `;
-                    }).join('')}
-                </tbody>
-            </table>
-        </div>
-
-        <div class="grid-2">
-            <div class="chart-card">
-                <h3>🔄 Удержание после упражнений</h3>
-                <div class="chart-container">
-                    <canvas id="retentionChart"></canvas>
-                </div>
-            </div>
-            <div class="chart-card">
-                <h3>📊 Готовность vs Помощь</h3>
-                <div class="chart-container">
-                    <canvas id="readinessChart"></canvas>
-                </div>
-            </div>
-        </div>
-
-        <div class="insights">
-            <h3>💡 Ключевые инсайты и рекомендации</h3>
-            <ul>
-                ${effectiveness.length > 0 ? `
-                <li><strong>Самое эффективное упражнение:</strong> ${effectiveness[0]?.exercise_name} (День ${effectiveness[0]?.day}) с рейтингом ${effectiveness[0]?.effectiveness_score?.toFixed(1)}</li>
-                <li><strong>Требует доработки:</strong> ${effectiveness[effectiveness.length - 1]?.exercise_name} (День ${effectiveness[effectiveness.length - 1]?.day}) - низкий рейтинг ${effectiveness[effectiveness.length - 1]?.effectiveness_score?.toFixed(1)}</li>
-                ` : ''}
-                <li><strong>Общий тренд:</strong> ${engagement.reduce((sum: number, e: any) => sum + (e.help_request_rate || 0), 0) / engagement.length > 20 ? 'Участники часто просят помощь - стоит упростить инструкции' : 'Упражнения понятны большинству участников'}</li>
-                <li><strong>Активность:</strong> ${emotionalImpact.reduce((sum: number, e: any) => sum + (e.positive_rate || 0), 0) / emotionalImpact.length > 60 ? 'Позитивная реакция участников' : 'Смешанные реакции - стоит проанализировать отзывы'}</li>
-            </ul>
-        </div>
-
-        <div style="text-align: center; margin-top: 30px;">
-            <a href="/dashboard" class="action-btn">🏠 На главную</a>
-            <a href="/dashboard/responses" class="action-btn">💭 Ответы пользователей</a>
-            <a href="/dashboard/export/responses" class="action-btn">📥 Экспорт CSV</a>
-        </div>
-    </div>
-
-    <script>
-        // График вовлеченности
-        const engagementCtx = document.getElementById('engagementChart').getContext('2d');
-        new Chart(engagementCtx, {
-            type: 'line',
-            data: {
-                labels: ['День 1', 'День 2', 'День 3', 'День 4', 'День 5', 'День 6', 'День 7'],
-                datasets: [{
-                    label: 'Вовлеченность (%)',
-                    data: ${JSON.stringify(engagement.map((e: any) => e.engagement_rate || 0))},
-                    borderColor: '#8B5CF6',
-                    backgroundColor: 'rgba(139, 92, 246, 0.1)',
-                    fill: true,
-                    tension: 0.4
-                }, {
-                    label: 'Готовность (%)',
-                    data: ${JSON.stringify(engagement.map((e: any) => e.readiness_rate || 0))},
-                    borderColor: '#28a745',
-                    backgroundColor: 'rgba(40, 167, 69, 0.1)',
-                    fill: false,
-                    tension: 0.4
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                scales: { y: { beginAtZero: true, max: 100 } }
-            }
-        });
-
-        // График эмоций
-        const emotionalCtx = document.getElementById('emotionalChart').getContext('2d');
-        new Chart(emotionalCtx, {
-            type: 'bar',
-            data: {
-                labels: ['День 1', 'День 2', 'День 3', 'День 4', 'День 5', 'День 6', 'День 7'],
-                datasets: [{
-                    label: 'Позитивные (%)',
-                    data: ${JSON.stringify(emotionalImpact.map((e: any) => e.positive_rate || 0))},
-                    backgroundColor: '#28a745'
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                scales: { y: { beginAtZero: true, max: 100 } }
-            }
-        });
-
-        // График удержания
-        const retentionCtx = document.getElementById('retentionChart').getContext('2d');
-        new Chart(retentionCtx, {
-            type: 'line',
-            data: {
-                labels: ${JSON.stringify(retention.map((r: any) => `День ${r.day}`))},
-                datasets: [{
-                    label: 'Удержание (%)',
-                    data: ${JSON.stringify(retention.map((r: any) => r.retention_rate || 0))},
-                    borderColor: '#ff6b6b',
-                    backgroundColor: 'rgba(255, 107, 107, 0.1)',
-                    fill: true,
-                    tension: 0.4
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                scales: { y: { beginAtZero: true, max: 100 } }
-            }
-        });
-
-        // График готовности vs помощи
-        const readinessCtx = document.getElementById('readinessChart').getContext('2d');
-        new Chart(readinessCtx, {
-            type: 'bar',
-            data: {
-                labels: ['День 1', 'День 2', 'День 3', 'День 4', 'День 5', 'День 6', 'День 7'],
-                datasets: [{
-                    label: 'Готовы попробовать (%)',
-                    data: ${JSON.stringify(engagement.map((e: any) => e.readiness_rate || 0))},
-                    backgroundColor: '#28a745'
-                }, {
-                    label: 'Нужна помощь (%)',
-                    data: ${JSON.stringify(engagement.map((e: any) => e.help_request_rate || 0))},
-                    backgroundColor: '#ffc107'
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                scales: { 
-                    y: { beginAtZero: true, max: 100 },
-                    x: { stacked: false }
-                }
-            }
-        });
-    </script>
-</body>
-</html>`;
-
-      res.send(html);
-    } catch (error) {
-      console.error('❌ Ошибка анализа упражнений:', error);
-      res.status(500).send(`Ошибка: ${error}`);
-    }
-  });
-
-  // ОТВЕТЫ ПОЛЬЗОВАТЕЛЕЙ с поиском и фильтрацией
-  this.app.get('/dashboard/responses', authenticate, async (req, res) => {
-    try {
-      const { day, search, limit = 200 } = req.query;
-      
-      const dayNumber = day ? parseInt(day as string) : undefined;
-      const limitNumber = parseInt(limit as string);
-      
-      const filters: any = { limit: limitNumber };
-      if (dayNumber) filters.day = dayNumber;
-      if (search) filters.keyword = search as string;
-      
-      const [responses, meaningfulResponses] = await Promise.all([
-        this.database.searchResponses(filters),
-        this.database.getMeaningfulResponses(10)
-      ]);
-
-      const html = `<!DOCTYPE html>
-<html lang="ru">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>💭 Ответы пользователей</title>
-    <link rel="icon" type="image/png" href="data:image/png;base64,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">
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { 
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(135deg, #8B5CF6 0%, #EC4899 30%, #F59E0B 70%, #EF4444 100%);
-            color: #1E293B;
-            line-height: 1.6;
-            min-height: 100vh;
-            padding: 20px;
-        }
-        .container { max-width: 1200px; margin: 0 auto; }
-        .header {
-            background: rgba(255, 255, 255, 0.95);
-            color: #1E293B;
-            padding: 30px;
-            text-align: center;
-            margin-bottom: 30px;
-            border-radius: 15px;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
-        }
-        .header h1 {
-            font-size: 2.5em;
-            margin-bottom: 10px;
-            background: linear-gradient(135deg, #8B5CF6, #EC4899);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-        .filters {
-            background: rgba(255, 255, 255, 0.95);
-            padding: 25px;
-            border-radius: 15px;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
-            margin-bottom: 20px;
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 15px;
-            align-items: end;
-        }
-        .filter-group label {
-            display: block;
-            margin-bottom: 5px;
-            font-weight: 500;
-            color: #1E293B;
-        }
-        .filter-group input, .filter-group select {
-            width: 100%;
-            padding: 10px;
-            border: 2px solid #e1e8ed;
-            border-radius: 8px;
-            font-size: 14px;
-        }
-        .filter-group input:focus, .filter-group select:focus {
-            outline: none;
-            border-color: #8B5CF6;
-        }
-        .response-card {
-            background: rgba(255, 255, 255, 0.95);
-            padding: 20px;
-            border-radius: 15px;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
-            margin-bottom: 15px;
-            border-left: 5px solid #8B5CF6;
-        }
-        .response-meta {
-            font-size: 0.9em;
-            color: #1E293B;
-            margin-bottom: 10px;
-            display: flex;
-            justify-content: space-between;
-            flex-wrap: wrap;
-            gap: 10px;
-        }
-        .response-text {
-            background: #f8f9fa;
-            padding: 15px;
-            border-radius: 8px;
-            margin-top: 10px;
-            line-height: 1.5;
-        }
-        .action-btn {
-            background: linear-gradient(135deg, #8B5CF6, #EC4899);
-            color: white;
-            padding: 12px 24px;
-            border: none;
-            border-radius: 8px;
-            text-decoration: none;
-            display: inline-block;
-            margin: 8px 8px 8px 0;
-            transition: all 0.3s ease;
-            font-weight: 500;
-            cursor: pointer;
-        }
-        .action-btn:hover { 
-            transform: translateY(-2px);
-            box-shadow: 0 8px 20px rgba(139, 92, 246, 0.4);
-        }
-        .highlight { background-color: yellow; }
-        .stats-summary {
-            background: rgba(255, 255, 255, 0.95);
-            padding: 20px;
-            border-radius: 15px;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
-            margin-bottom: 20px;
-            text-align: center;
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <h1>💭 Ответы пользователей</h1>
-            <p>Поиск и анализ ответов участников курса</p>
-        </div>
-
-        <form class="filters" method="GET">
-            <div class="filter-group">
-                <label>День курса</label>
-                <select name="day">
-                    <option value="">Все дни</option>
-                    ${[1,2,3,4,5,6,7].map((d: number) => `<option value="${d}" ${dayNumber === d ? 'selected' : ''}>День ${d}</option>`).join('')}
-                </select>
-            </div>
-            <div class="filter-group">
-                <label>Поиск по тексту</label>
-                <input type="text" name="search" value="${search || ''}" placeholder="Поиск в свободных ответах...">
-            </div>
-            <div class="filter-group">
-                <label>Количество</label>
-                <select name="limit">
-                    <option value="50" ${limitNumber === 50 ? 'selected' : ''}>50</option>
-                    <option value="100" ${limitNumber === 100 ? 'selected' : ''}>100</option>
-                    <option value="200" ${limitNumber === 200 ? 'selected' : ''}>200</option>
-                    <option value="500" ${limitNumber === 500 ? 'selected' : ''}>500</option>
-                </select>
-            </div>
-            <div class="filter-group">
-                <button type="submit" class="action-btn">🔍 Искать</button>
-            </div>
-        </form>
-
-        <div class="stats-summary">
-            <strong>Найдено свободных ответов: ${responses.length}</strong>
-            ${search ? `по запросу "${search}"` : ''}
-            ${dayNumber ? `за день ${dayNumber}` : ''}
-            <br><small style="color: #1E293B;">Показываются только текстовые ответы (исключены нажатия кнопок)</small>
-        </div>
-
-        ${meaningfulResponses.length > 0 ? `
-        <div class="response-card" style="border-left-color: #28a745;">
-            <h3 style="color: #28a745; margin-bottom: 15px;">🌟 Самые содержательные свободные ответы</h3>
-            ${meaningfulResponses.slice(0, 3).map((r: any) => `
-                <div style="background: #e8f5e8; padding: 10px; margin: 10px 0; border-radius: 8px;">
-                    <strong>${r.name || 'Пользователь'}</strong> • День ${r.day} • ${r.text_length} символов<br>
-                    <em>"${r.response_text.substring(0, 100)}${r.response_text.length > 100 ? '...' : ''}"</em>
-                </div>
-            `).join('')}
-        </div>
-        ` : ''}
-
-        ${responses.map((response: any) => `
-        <div class="response-card">
-            <div class="response-meta">
-                <span><strong>${response.name || 'Пользователь'}</strong> • День ${response.day}</span>
-                <span>${new Date(response.created_at).toLocaleString('ru-RU')}</span>
-            </div>
-            <strong>Тип ответа:</strong> ${response.question_type === 'free_text' ? 'Свободный ответ' : response.question_type}
-            <div class="response-text">
-                ${search ? 
-                  response.response_text.replace(
-                    new RegExp(`(${search})`, 'gi'), 
-                    '<span class="highlight">$1</span>'
-                  ) : 
-                  response.response_text
-                }
-            </div>
-        </div>
-        `).join('')}
-
-        ${responses.length === 0 ? `
-        <div class="response-card" style="text-align: center; border-left-color: #ff6b6b;">
-            <h3>😔 Ответы не найдены</h3>
-            <p>Попробуйте изменить параметры поиска</p>
-        </div>
-        ` : ''}
-
-        <div style="text-align: center; margin-top: 30px;">
-            <a href="/dashboard" class="action-btn">🏠 На главную</a>
-            <a href="/dashboard/responses" class="action-btn">💭 Ответы пользователей</a>
-            <a href="/dashboard/export/responses" class="action-btn">📥 Экспорт CSV</a>
-        </div>
-    </div>
-</body>
-</html>`;
-
-      res.send(html);
-    } catch (error) {
-      console.error('❌ Ошибка страницы ответов:', error);
-      res.status(500).send(`Ошибка: ${error}`);
-    }
-  });
-
-  // Страница аналитики
-  this.app.get('/dashboard/analytics', authenticate, async (req, res) => {
-    try {
-      const stats = await this.database.getStats();
-      const html = `<!DOCTYPE html>
-<html lang="ru">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Аналитика - Забота о себе</title>
-    <link rel="icon" type="image/png" href="data:image/png;base64,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">
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { 
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(135deg, #8B5CF6 0%, #EC4899 30%, #F59E0B 70%, #EF4444 100%);
-            color: #1E293B;
-            line-height: 1.6;
-            min-height: 100vh;
-            padding: 20px;
-        }
-        .container { 
-            max-width: 1200px; 
-            margin: 0 auto;
-        }
-        .header {
-            background: rgba(255, 255, 255, 0.95);
-            color: #1E293B;
-            padding: 30px;
-            text-align: center;
-            margin-bottom: 30px;
-            border-radius: 15px;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
-        }
-        .header h1 {
-            font-size: 2.5em;
-            margin-bottom: 10px;
-            background: linear-gradient(135deg, #8B5CF6, #EC4899);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-        .info-card {
-            background: rgba(255, 255, 255, 0.95);
-            padding: 25px;
-            border-radius: 15px;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
-            margin-bottom: 20px;
-            border-left: 5px solid #8B5CF6;
-        }
-        .action-btn {
-            background: linear-gradient(135deg, #8B5CF6, #EC4899);
-            color: white;
-            padding: 12px 24px;
-            border: none;
-            border-radius: 8px;
-            text-decoration: none;
-            display: inline-block;
-            margin: 8px 8px 8px 0;
-            transition: all 0.3s ease;
-            font-weight: 500;
-        }
-        .action-btn:hover { 
-            transform: translateY(-2px);
-            box-shadow: 0 8px 20px rgba(139, 92, 246, 0.4);
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <h1>📊 Аналитика</h1>
-            <p>Глубокий анализ данных курса самосострадания</p>
-        </div>
-
-        <div class="info-card">
-            <h3>📈 Статистика курса</h3>
-            <p><strong>Всего пользователей:</strong> ${stats.totalUsers}</p>
-            <p><strong>Активных сегодня:</strong> ${stats.activeToday}</p>
-            <p><strong>Завершили курс:</strong> ${stats.completedCourse}</p>
-            <p style="margin-top: 15px;"><em>Детальная аналитика будет добавлена в следующих версиях</em></p>
-        </div>
-
-        <div class="info-card">
-            <h3>🚀 Планируемые функции аналитики</h3>
-            <ul>
-                <li>Графики завершаемости по дням</li>
-                <li>Эмоциональная динамика участников</li>
-                <li>Анализ самых эффективных упражнений</li>
-                <li>Временные паттерны активности</li>
-                <li>Прогнозирование отсева</li>
-            </ul>
-        </div>
-
-        <div style="text-align: center; margin-top: 30px;">
-            <a href="/dashboard" class="action-btn">🏠 Вернуться на главную</a>
-        </div>
-    </div>
-</body>
-</html>`;
-      res.send(html);
-    } catch (error) {
-      res.status(500).send(`Ошибка: ${error}`);
-    }
-  });
 }
   // === ОБРАБОТЧИКИ КОМАНД ===
   private async handleStart(msg: TelegramBot.Message): Promise<void> {
@@ -2065,7 +2134,7 @@ private setupAdminRoutes(): void {
     }
   }
 
-  // ✅ ОБНОВЛЕНО: Добавлена логика планирования обратной связи
+  // ✅ ИСПРАВЛЕНО: Специальная обработка кнопки "Нужна помощь"
   private async handleDayCallback(chatId: number, telegramId: number, data: string): Promise<void> {
     try {
       const user = await this.database.getUser(telegramId);
@@ -2073,24 +2142,7 @@ private setupAdminRoutes(): void {
 
       const currentDay = user.current_day || 1;
 
-      // ✅ НОВАЯ ЛОГИКА: Планирование обратной связи при нажатии "Готова попробовать"
-      if (data.includes('_exercise_ready')) {
-        // Сохраняем ответ пользователя
-        await this.database.saveResponse(user.id, currentDay, 'button_choice', data);
-        
-        // ✅ ПЛАНИРУЕМ СООБЩЕНИЕ ОБРАТНОЙ СВЯЗИ ЧЕРЕЗ 15 МИНУТ
-        await this.database.scheduleExerciseFeedback(user.id, telegramId, currentDay);
-        
-        // Отправляем подтверждение
-        await this.bot.sendMessage(chatId, 'Отлично! Попробуй упражнение, а через 15 минут я спрошу как дела 💙', {
-          reply_markup: this.getMainKeyboard(user)
-        });
-        
-        console.log(`✅ Запланирована обратная связь для пользователя ${telegramId} по дню ${currentDay}`);
-        return;
-      }
-
-      // ✅ СПЕЦИАЛЬНАЯ ЛОГИКА: Обработка кнопки "Нужна помощь"
+      // ✅ НОВАЯ ЛОГИКА: Специальная обработка кнопки "Нужна помощь"
       if (data.includes('_exercise_help')) {
         await this.handleExerciseHelp(chatId, currentDay);
         return;
@@ -2658,4 +2710,3 @@ const bot = new SelfCareBot();
 bot.init().catch(console.error);
 
 export default SelfCareBot;
-        

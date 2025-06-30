@@ -21,19 +21,6 @@ export interface DbStats {
   completedCourse: number;
 }
 
-// НОВЫЙ ИНТЕРФЕЙС для отложенных сообщений
-export interface ScheduledMessage {
-  id: number;
-  user_id: number;
-  telegram_id: number;
-  message_text: string;
-  scheduled_for: Date;
-  sent: boolean;
-  message_type: 'exercise_feedback' | 'reminder' | 'followup';
-  day: number;
-  created_at: Date;
-}
-
 export class Database {
   private pool: Pool;
 
@@ -110,20 +97,6 @@ export class Database {
           sent_date DATE DEFAULT CURRENT_DATE,
           sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           UNIQUE(user_id, day, reminder_type, sent_date)
-        )`,
-
-        // ✅ НОВАЯ ТАБЛИЦА для отложенных сообщений
-        `CREATE TABLE IF NOT EXISTS scheduled_messages (
-          id SERIAL PRIMARY KEY,
-          user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-          telegram_id BIGINT NOT NULL,
-          message_text TEXT NOT NULL,
-          scheduled_for TIMESTAMP NOT NULL,
-          sent BOOLEAN DEFAULT false,
-          message_type VARCHAR(50) DEFAULT 'exercise_feedback',
-          day INTEGER,
-          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          sent_at TIMESTAMP
         )`
       ];
 
@@ -152,15 +125,12 @@ export class Database {
         // Не падаем, продолжаем без этого поля
       }
 
-      // Создаем базовые индексы
+      // Создаем базовые индексы (без is_paused)
       const basicIndexes = [
         `CREATE INDEX IF NOT EXISTS idx_users_telegram_id ON users(telegram_id)`,
         `CREATE INDEX IF NOT EXISTS idx_responses_user_day ON responses(user_id, day)`,
         `CREATE INDEX IF NOT EXISTS idx_alerts_handled ON alerts(handled, created_at)`,
-        `CREATE INDEX IF NOT EXISTS idx_reminder_log_user_day ON reminder_log(user_id, day, reminder_type, sent_date)`,
-        // ✅ НОВЫЕ ИНДЕКСЫ для отложенных сообщений
-        `CREATE INDEX IF NOT EXISTS idx_scheduled_messages_pending ON scheduled_messages(sent, scheduled_for) WHERE sent = false`,
-        `CREATE INDEX IF NOT EXISTS idx_scheduled_messages_user ON scheduled_messages(user_id, sent)`
+        `CREATE INDEX IF NOT EXISTS idx_reminder_log_user_day ON reminder_log(user_id, day, reminder_type, sent_date)`
       ];
 
       for (const query of basicIndexes) {
@@ -176,7 +146,7 @@ export class Database {
       // Пробуем создать индекс с is_paused только если поле существует
       try {
         await this.pool.query(`CREATE INDEX IF NOT EXISTS idx_users_active ON users(course_completed, current_day)`);
-        console.log(`✅ Создан индекс idx_users_active`);
+        console.log(`✅ Создан индекс idx_users_active (без is_paused)`);
       } catch (err) {
         const error = err as Error;
         console.log(`ℹ️ Создание расширенного индекса пропущено: ${error.message || 'Неизвестная ошибка'}`);
@@ -188,90 +158,6 @@ export class Database {
     }
   }
 
-  // ✅ НОВЫЕ МЕТОДЫ для отложенных сообщений
-
-  // Создать отложенное сообщение обратной связи
-  async scheduleExerciseFeedback(userId: number, telegramId: number, day: number): Promise<void> {
-    try {
-      const feedbackTime = new Date();
-      feedbackTime.setMinutes(feedbackTime.getMinutes() + 15); // Через 15 минут
-
-      const messageText = `💙 Как прошло упражнение?
-
-Что у тебя получилось? С какими трудностями столкнулась? 
-
-Напиши в одном сообщении - мне важна твоя обратная связь! 💬`;
-
-      const query = `
-        INSERT INTO scheduled_messages (user_id, telegram_id, message_text, scheduled_for, message_type, day)
-        VALUES ($1, $2, $3, $4, 'exercise_feedback', $5)
-      `;
-      
-      await this.pool.query(query, [userId, telegramId, messageText, feedbackTime, day]);
-      console.log(`✅ Запланировано сообщение обратной связи для пользователя ${telegramId} на ${feedbackTime.toLocaleString('ru-RU')}`);
-    } catch (error) {
-      console.error('❌ Ошибка создания отложенного сообщения:', error);
-    }
-  }
-
-  // Получить готовые к отправке сообщения
-  async getPendingScheduledMessages(): Promise<ScheduledMessage[]> {
-    try {
-      const query = `
-        SELECT * FROM scheduled_messages 
-        WHERE sent = false 
-          AND scheduled_for <= NOW()
-        ORDER BY scheduled_for ASC
-        LIMIT 50
-      `;
-      
-      const result = await this.pool.query(query);
-      return result.rows;
-    } catch (error) {
-      console.error('❌ Ошибка получения отложенных сообщений:', error);
-      return [];
-    }
-  }
-
-  // Пометить сообщение как отправленное
-  async markScheduledMessageSent(messageId: number): Promise<void> {
-    try {
-      const query = `
-        UPDATE scheduled_messages 
-        SET sent = true, sent_at = NOW() 
-        WHERE id = $1
-      `;
-      
-      await this.pool.query(query, [messageId]);
-      console.log(`✅ Отложенное сообщение ${messageId} помечено как отправленное`);
-    } catch (error) {
-      console.error('❌ Ошибка отметки отложенного сообщения:', error);
-    }
-  }
-
-  // Отменить отложенные сообщения пользователя (если нужно)
-  async cancelUserScheduledMessages(userId: number, messageType?: string): Promise<void> {
-    try {
-      let query = `
-        UPDATE scheduled_messages 
-        SET sent = true, sent_at = NOW() 
-        WHERE user_id = $1 AND sent = false
-      `;
-      const params: (number | string)[] = [userId];
-      
-      if (messageType) {
-        query += ` AND message_type = $2`;
-        params.push(messageType);
-      }
-      
-      await this.pool.query(query, params);
-      console.log(`✅ Отменены отложенные сообщения для пользователя ${userId}`);
-    } catch (error) {
-      console.error('❌ Ошибка отмены отложенных сообщений:', error);
-    }
-  }
-
-  // Остальные методы остаются без изменений...
   async createUser(telegramId: number, name?: string): Promise<DbUser> {
     const query = `
       INSERT INTO users (telegram_id, name) 
@@ -319,6 +205,7 @@ export class Database {
       }
     } catch (error) {
       console.error('❌ Ошибка в pauseUser:', error);
+      // Не падаем, просто логируем
     }
   }
 
@@ -340,6 +227,7 @@ export class Database {
       }
     } catch (error) {
       console.error('❌ Ошибка в resumeUser:', error);
+      // Не падаем, просто логируем
     }
   }
 
