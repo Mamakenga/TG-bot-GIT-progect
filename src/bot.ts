@@ -532,6 +532,7 @@ private setupAdminRoutes(): void {
              <a href="/dashboard/export/responses" class="action-btn">📄 Экспорт ответов (CSV)</a>
              <a href="/dashboard/export/users" class="action-btn">👥 Экспорт пользователей (CSV)</a>
              <a href="/dashboard/export/alerts" class="action-btn">🚨 Экспорт алертов (CSV)</a>
+            <a href="/dashboard/alerts" class="action-btn">📋 Просмотр алертов</a>
              <a href="/dashboard" class="action-btn">🏠 На главную</a>
            </div>
         </div> 
@@ -763,7 +764,7 @@ private setupAdminRoutes(): void {
     <div class="container">
         <div class="header">
             <h1>💭 Ответы пользователей</h1>
-            <p>Последние ${responses.length} ответов участников курса</p>
+            <p>Поиск и анализ свободных ответов участников курса</p>
         </div>
 
         <div style="text-align: center; margin-bottom: 30px;">
@@ -1090,7 +1091,7 @@ private setupAdminRoutes(): void {
   // ОТВЕТЫ ПОЛЬЗОВАТЕЛЕЙ с поиском и фильтрацией
   this.app.get('/dashboard/responses', authenticate, async (req, res) => {
     try {
-      const { day, search, limit = 50 } = req.query;
+      const { day, search, limit = 200 } = req.query;
       
       const dayNumber = day ? parseInt(day as string) : undefined;
       const limitNumber = parseInt(limit as string);
@@ -1234,14 +1235,15 @@ private setupAdminRoutes(): void {
             </div>
             <div class="filter-group">
                 <label>Поиск по тексту</label>
-                <input type="text" name="search" value="${search || ''}" placeholder="Введите ключевое слово...">
+                <input type="text" name="search" value="${search || ''}" placeholder="Поиск в свободных ответах...">
             </div>
             <div class="filter-group">
                 <label>Количество</label>
                 <select name="limit">
-                    <option value="20" ${limitNumber === 20 ? 'selected' : ''}>20</option>
                     <option value="50" ${limitNumber === 50 ? 'selected' : ''}>50</option>
                     <option value="100" ${limitNumber === 100 ? 'selected' : ''}>100</option>
+                    <option value="200" ${limitNumber === 200 ? 'selected' : ''}>200</option>
+                    <option value="500" ${limitNumber === 500 ? 'selected' : ''}>500</option>
                 </select>
             </div>
             <div class="filter-group">
@@ -1250,14 +1252,15 @@ private setupAdminRoutes(): void {
         </form>
 
         <div class="stats-summary">
-            <strong>Найдено ответов: ${responses.length}</strong>
+            <strong>Найдено свободных ответов: ${responses.length}</strong>
             ${search ? `по запросу "${search}"` : ''}
             ${dayNumber ? `за день ${dayNumber}` : ''}
+            <br><small style="color: #666;">Показываются только текстовые ответы (исключены нажатия кнопок)</small>
         </div>
 
         ${meaningfulResponses.length > 0 ? `
         <div class="response-card" style="border-left-color: #28a745;">
-            <h3 style="color: #28a745; margin-bottom: 15px;">🌟 Самые содержательные ответы</h3>
+            <h3 style="color: #28a745; margin-bottom: 15px;">🌟 Самые содержательные свободные ответы</h3>
             ${meaningfulResponses.slice(0, 3).map((r: any) => `
                 <div style="background: #e8f5e8; padding: 10px; margin: 10px 0; border-radius: 8px;">
                     <strong>${r.name || 'Пользователь'}</strong> • День ${r.day} • ${r.text_length} символов<br>
@@ -1273,7 +1276,7 @@ private setupAdminRoutes(): void {
                 <span><strong>${response.name || 'Пользователь'}</strong> • День ${response.day}</span>
                 <span>${new Date(response.created_at).toLocaleString('ru-RU')}</span>
             </div>
-            <strong>Тип вопроса:</strong> ${response.question_type}
+            <strong>Тип ответа:</strong> ${response.question_type === 'free_text' ? 'Свободный ответ' : response.question_type}
             <div class="response-text">
                 ${search ? 
                   response.response_text.replace(
