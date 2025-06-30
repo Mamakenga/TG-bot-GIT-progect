@@ -418,7 +418,7 @@ async markAlertAsHandled(alertId: number): Promise<void> {
     return stats;
   }
 
-  // НОВЫЙ МЕТОД: Расширенная статистика
+  // Расширенная статистика
 async getDetailedStats(): Promise<any> {
   try {
     // Проверяем существование поля is_paused
@@ -654,7 +654,6 @@ async getDetailedStats(): Promise<any> {
 }
 
   // Поиск ответов с фильтрами
-  // Замените метод searchResponses в database.ts на этот исправленный вариант:
 
 async searchResponses(filters: {
   day?: number;
@@ -712,6 +711,282 @@ async searchResponses(filters: {
   } catch (error) {
     console.error('❌ Ошибка searchResponses:', error);
     return [];
+  }
+}
+// === АНАЛИЗ ЭФФЕКТИВНОСТИ УПРАЖНЕНИЙ ===
+
+// 1. Анализ откликов на упражнения по дням
+async getExerciseEngagement(): Promise<any[]> {
+  try {
+    const query = `
+      WITH exercise_stats AS (
+        SELECT 
+          r.day,
+          COUNT(*) as total_responses,
+          COUNT(DISTINCT r.user_id) as unique_users,
+          COUNT(CASE WHEN r.question_type ILIKE '%exercise_ready%' THEN 1 END) as ready_to_try,
+          COUNT(CASE WHEN r.question_type ILIKE '%exercise_help%' THEN 1 END) as need_help,
+          COUNT(CASE WHEN r.question_type ILIKE '%exercise_later%' THEN 1 END) as do_later,
+          AVG(LENGTH(CASE WHEN r.response_type = 'text' THEN r.response_text END)) as avg_text_length
+        FROM responses r
+        WHERE r.question_type ILIKE '%exercise%'
+          AND r.created_at > NOW() - INTERVAL '30 days'
+        GROUP BY r.day
+      ),
+      user_counts AS (
+        SELECT 
+          current_day as day,
+          COUNT(*) as users_on_day
+        FROM users 
+        WHERE current_day BETWEEN 1 AND 7
+        GROUP BY current_day
+      )
+      SELECT 
+        e.day,
+        e.total_responses,
+        e.unique_users,
+        u.users_on_day,
+        ROUND((e.unique_users::float / NULLIF(u.users_on_day, 0) * 100), 1) as engagement_rate,
+        e.ready_to_try,
+        e.need_help,
+        e.do_later,
+        ROUND(e.avg_text_length, 1) as avg_text_length,
+        ROUND((e.ready_to_try::float / NULLIF(e.total_responses, 0) * 100), 1) as readiness_rate,
+        ROUND((e.need_help::float / NULLIF(e.total_responses, 0) * 100), 1) as help_request_rate
+      FROM exercise_stats e
+      LEFT JOIN user_counts u ON e.day = u.day
+      ORDER BY e.day;
+    `;
+    
+    const result = await this.pool.query(query);
+    return result.rows;
+  } catch (error) {
+    console.error('❌ Ошибка getExerciseEngagement:', error);
+    return [];
+  }
+}
+
+// 2. Анализ эмоциональной реакции после упражнений
+async getExerciseEmotionalImpact(): Promise<any[]> {
+  try {
+    const query = `
+      WITH emotional_analysis AS (
+        SELECT 
+          r.day,
+          r.user_id,
+          r.response_text,
+          r.created_at,
+          CASE 
+            WHEN r.response_text ILIKE '%лучше%' 
+              OR r.response_text ILIKE '%помогло%'
+              OR r.response_text ILIKE '%хорошо%'
+              OR r.response_text ILIKE '%спокойн%'
+              OR r.response_text ILIKE '%легче%'
+              OR r.response_text ILIKE '%благодар%'
+            THEN 'positive'
+            WHEN r.response_text ILIKE '%сложно%'
+              OR r.response_text ILIKE '%трудно%'
+              OR r.response_text ILIKE '%не получается%'
+              OR r.response_text ILIKE '%непонятно%'
+              OR r.response_text ILIKE '%не помогает%'
+            THEN 'negative'
+            ELSE 'neutral'
+          END as emotional_tone
+        FROM responses r
+        WHERE r.response_type = 'text'
+          AND LENGTH(r.response_text) > 10
+          AND r.created_at > NOW() - INTERVAL '30 days'
+          AND EXISTS (
+            SELECT 1 FROM responses r2 
+            WHERE r2.user_id = r.user_id 
+              AND r2.day = r.day 
+              AND r2.question_type ILIKE '%exercise%'
+              AND r2.created_at < r.created_at
+          )
+      )
+      SELECT 
+        day,
+        COUNT(*) as total_feedback,
+        COUNT(CASE WHEN emotional_tone = 'positive' THEN 1 END) as positive_count,
+        COUNT(CASE WHEN emotional_tone = 'negative' THEN 1 END) as negative_count,
+        COUNT(CASE WHEN emotional_tone = 'neutral' THEN 1 END) as neutral_count,
+        ROUND((COUNT(CASE WHEN emotional_tone = 'positive' THEN 1 END)::float / COUNT(*) * 100), 1) as positive_rate
+      FROM emotional_analysis
+      GROUP BY day
+      ORDER BY day;
+    `;
+    
+    const result = await this.pool.query(query);
+    return result.rows;
+  } catch (error) {
+    console.error('❌ Ошибка getExerciseEmotionalImpact:', error);
+    return [];
+  }
+}
+
+// 3. Анализ удержания после каждого упражнения
+async getExerciseRetention(): Promise<any[]> {
+  try {
+    const query = `
+      WITH daily_users AS (
+        SELECT 
+          day,
+          COUNT(DISTINCT user_id) as completed_exercise
+        FROM responses 
+        WHERE question_type ILIKE '%exercise%'
+          AND created_at > NOW() - INTERVAL '30 days'
+        GROUP BY day
+      ),
+      next_day_users AS (
+        SELECT 
+          p1.day,
+          COUNT(DISTINCT p1.user_id) as started_next_day
+        FROM progress p1
+        WHERE p1.completed = true
+          AND EXISTS (
+            SELECT 1 FROM progress p2 
+            WHERE p2.user_id = p1.user_id 
+              AND p2.day = p1.day + 1
+          )
+        GROUP BY p1.day
+      )
+      SELECT 
+        d.day,
+        d.completed_exercise,
+        COALESCE(n.started_next_day, 0) as started_next_day,
+        ROUND((COALESCE(n.started_next_day, 0)::float / NULLIF(d.completed_exercise, 0) * 100), 1) as retention_rate
+      FROM daily_users d
+      LEFT JOIN next_day_users n ON d.day = n.day
+      WHERE d.day < 7
+      ORDER BY d.day;
+    `;
+    
+    const result = await this.pool.query(query);
+    return result.rows;
+  } catch (error) {
+    console.error('❌ Ошибка getExerciseRetention:', error);
+    return [];
+  }
+}
+
+// 4. Рейтинг упражнений по эффективности
+async getExerciseEffectivenessRating(): Promise<any[]> {
+  try {
+    const query = `
+      WITH exercise_metrics AS (
+        SELECT 
+          r.day,
+          -- Метрика 1: Уровень участия
+          COUNT(DISTINCT r.user_id)::float / NULLIF(
+            (SELECT COUNT(*) FROM users WHERE current_day = r.day), 0
+          ) * 100 as participation_rate,
+          
+          -- Метрика 2: Готовность к выполнению
+          COUNT(CASE WHEN r.question_type ILIKE '%exercise_ready%' THEN 1 END)::float /
+          NULLIF(COUNT(CASE WHEN r.question_type ILIKE '%exercise%' THEN 1 END), 0) * 100 as readiness_rate,
+          
+          -- Метрика 3: Средняя длина ответов (качество)
+          AVG(LENGTH(CASE WHEN r.response_type = 'text' THEN r.response_text END)) as avg_response_quality,
+          
+          -- Метрика 4: Процент обращений за помощью (чем меньше, тем лучше)
+          COUNT(CASE WHEN r.question_type ILIKE '%exercise_help%' THEN 1 END)::float /
+          NULLIF(COUNT(CASE WHEN r.question_type ILIKE '%exercise%' THEN 1 END), 0) * 100 as help_request_rate
+          
+        FROM responses r
+        WHERE r.created_at > NOW() - INTERVAL '30 days'
+        GROUP BY r.day
+      ),
+      day_titles AS (
+        SELECT day, title FROM (VALUES
+          (1, 'Осознание боли'),
+          (2, 'Внутренний критик'),
+          (3, 'Письмо себе'),
+          (4, 'Сострадательное прикосновение'),
+          (5, 'Разрешение быть уязвимой'),
+          (6, 'Забота о потребностях'),
+          (7, 'Благодарность себе')
+        ) AS t(day, title)
+      )
+      SELECT 
+        m.day,
+        t.title as exercise_name,
+        ROUND(m.participation_rate, 1) as participation_rate,
+        ROUND(m.readiness_rate, 1) as readiness_rate,
+        ROUND(m.avg_response_quality, 1) as avg_response_quality,
+        ROUND(m.help_request_rate, 1) as help_request_rate,
+        -- Общий рейтинг эффективности (формула)
+        ROUND(
+          (m.participation_rate * 0.3 + 
+           m.readiness_rate * 0.3 + 
+           LEAST(m.avg_response_quality / 10, 10) * 0.2 + 
+           (100 - m.help_request_rate) * 0.2), 1
+        ) as effectiveness_score
+      FROM exercise_metrics m
+      JOIN day_titles t ON m.day = t.day
+      ORDER BY effectiveness_score DESC NULLS LAST;
+    `;
+    
+    const result = await this.pool.query(query);
+    return result.rows;
+  } catch (error) {
+    console.error('❌ Ошибка getExerciseEffectivenessRating:', error);
+    return [];
+  }
+}
+
+// 5. Подробный анализ конкретного упражнения
+async getExerciseDetailedAnalysis(day: number): Promise<any> {
+  try {
+    const queries = {
+      overview: `
+        SELECT 
+          COUNT(DISTINCT r.user_id) as total_participants,
+          COUNT(*) as total_interactions,
+          AVG(LENGTH(CASE WHEN r.response_type = 'text' THEN r.response_text END)) as avg_text_length,
+          COUNT(CASE WHEN r.question_type ILIKE '%exercise_ready%' THEN 1 END) as ready_count,
+          COUNT(CASE WHEN r.question_type ILIKE '%exercise_help%' THEN 1 END) as help_count,
+          COUNT(CASE WHEN r.question_type ILIKE '%exercise_later%' THEN 1 END) as later_count
+        FROM responses r
+        WHERE r.day = $1 AND r.created_at > NOW() - INTERVAL '30 days'
+      `,
+      
+      timeDistribution: `
+        SELECT 
+          EXTRACT(HOUR FROM r.created_at) as hour,
+          COUNT(*) as responses
+        FROM responses r
+        WHERE r.day = $1 
+          AND r.question_type ILIKE '%exercise%'
+          AND r.created_at > NOW() - INTERVAL '30 days'
+        GROUP BY EXTRACT(HOUR FROM r.created_at)
+        ORDER BY hour
+      `,
+      
+      qualitativeResponses: `
+        SELECT 
+          r.response_text,
+          LENGTH(r.response_text) as text_length,
+          r.created_at
+        FROM responses r
+        WHERE r.day = $1 
+          AND r.response_type = 'text'
+          AND LENGTH(r.response_text) > 50
+          AND r.created_at > NOW() - INTERVAL '30 days'
+        ORDER BY LENGTH(r.response_text) DESC
+        LIMIT 10
+      `
+    };
+
+    const results: any = {};
+    for (const [key, query] of Object.entries(queries)) {
+      const result = await this.pool.query(query, [day]);
+      results[key] = key === 'overview' ? result.rows[0] : result.rows;
+    }
+
+    return results;
+  } catch (error) {
+    console.error('❌ Ошибка getExerciseDetailedAnalysis:', error);
+    return { overview: {}, timeDistribution: [], qualitativeResponses: [] };
   }
 }
 

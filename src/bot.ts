@@ -1631,7 +1631,7 @@ private setupAdminRoutes(): void {
         }
         .nav-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
             gap: 20px;
             margin-bottom: 30px;
         }
@@ -1704,6 +1704,11 @@ private setupAdminRoutes(): void {
             <a href="/dashboard/analytics" class="nav-card">
                 <h3>📊 Аналитика</h3>
                 <p>Глубокий анализ данных, графики завершаемости и эмоциональная карта курса</p>
+            </a>
+            
+            <a href="/dashboard/exercises" class="nav-card">
+                <h3>🎯 Эффективность упражнений</h3>
+                <p>Рейтинг и анализ воздействия каждого упражнения на участников</p>
             </a>
             
             <a href="/dashboard/responses" class="nav-card">
