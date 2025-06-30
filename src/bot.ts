@@ -1077,15 +1077,14 @@ private setupAdminRoutes(): void {
     }
   });
 
-  // АНАЛИТИКА с красивыми графиками
-  this.app.get('/dashboard/analytics', authenticate, async (req, res) => {
+  // ЭФФЕКТИВНОСТЬ УПРАЖНЕНИЙ  
+  this.app.get('/dashboard/exercises', authenticate, async (req, res) => {
     try {
-      const [stats, detailedStats, completionData, emotionalData, dropoffData] = await Promise.all([
-        this.database.getStats(),
-        this.database.getDetailedStats(),
-        this.database.getCompletionByDays(),
-        this.database.getEmotionalDynamics(),
-        this.database.getDropoffDays()
+      const [engagement, emotionalImpact, retention, effectiveness] = await Promise.all([
+        this.database.getExerciseEngagement(),
+        this.database.getExerciseEmotionalImpact(), 
+        this.database.getExerciseRetention(),
+        this.database.getExerciseEffectivenessRating()
       ]);
 
       const html = `<!DOCTYPE html>
@@ -1093,7 +1092,7 @@ private setupAdminRoutes(): void {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>📊 Аналитика - Забота о себе</title>
+    <title>🎯 Эффективность упражнений</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -1105,7 +1104,7 @@ private setupAdminRoutes(): void {
             min-height: 100vh;
             padding: 20px;
         }
-        .container { max-width: 1200px; margin: 0 auto; }
+        .container { max-width: 1400px; margin: 0 auto; }
         .header {
             background: rgba(255, 255, 255, 0.95);
             color: #667eea;
@@ -1122,29 +1121,62 @@ private setupAdminRoutes(): void {
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
         }
-        .stats-grid {
+        .grid-2 {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(450px, 1fr));
             gap: 20px;
             margin-bottom: 30px;
         }
-        .stat-card, .chart-card {
+        .grid-3 {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .chart-card, .ranking-card {
             background: rgba(255, 255, 255, 0.95);
             padding: 25px;
             border-radius: 15px;
             box-shadow: 0 8px 32px rgba(0,0,0,0.1);
-            transition: transform 0.3s ease;
-        }
-        .stat-card:hover, .chart-card:hover { transform: translateY(-5px); }
-        .big-number {
-            font-size: 2.5em;
-            font-weight: bold;
-            background: linear-gradient(135deg, #667eea, #764ba2);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            margin: 10px 0;
         }
         .chart-container { position: relative; height: 300px; margin-top: 15px; }
+        .ranking-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+        .ranking-table th, .ranking-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #e1e8ed;
+        }
+        .ranking-table th {
+            background: #f8f9fa;
+            font-weight: 600;
+            color: #667eea;
+        }
+        .score-badge {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 0.9em;
+        }
+        .score-excellent { background: #d4edda; color: #155724; }
+        .score-good { background: #d1ecf1; color: #0c5460; }
+        .score-average { background: #fff3cd; color: #856404; }
+        .score-poor { background: #f8d7da; color: #721c24; }
+        .metric-card {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        .metric-number {
+            font-size: 2em;
+            font-weight: bold;
+            margin: 10px 0;
+        }
         .action-btn {
             background: linear-gradient(135deg, #667eea, #764ba2);
             color: white;
@@ -1167,76 +1199,119 @@ private setupAdminRoutes(): void {
             border-radius: 15px;
             box-shadow: 0 8px 32px rgba(0,0,0,0.1);
             margin-bottom: 20px;
-            border-left: 5px solid #667eea;
+            border-left: 5px solid #28a745;
         }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <h1>📊 Аналитика курса</h1>
-            <p>Детальный анализ данных самосострадания</p>
+            <h1>🎯 Анализ эффективности упражнений</h1>
+            <p>Комплексная оценка воздействия упражнений курса самосострадания</p>
         </div>
 
-        <div class="stats-grid">
-            <div class="stat-card">
-                <h3>👥 Всего пользователей</h3>
-                <div class="big-number">${stats.totalUsers}</div>
-                <p>Зарегистрировано в системе</p>
+        <div class="grid-3">
+            <div class="metric-card">
+                <h3 style="color: #667eea;">📊 Средняя вовлеченность</h3>
+                <div class="metric-number" style="color: #28a745;">
+                    ${engagement.length > 0 ? Math.round(engagement.reduce((sum: number, e: any) => sum + (e.engagement_rate || 0), 0) / engagement.length) : 0}%
+                </div>
+                <p>участников отвечают на упражнения</p>
             </div>
-            <div class="stat-card">
-                <h3>📈 Активность сегодня</h3>
-                <div class="big-number">${stats.activeToday}</div>
-                <p>Активных пользователей</p>
+            <div class="metric-card">
+                <h3 style="color: #667eea;">🚀 Готовность к действию</h3>
+                <div class="metric-number" style="color: #17a2b8;">
+                    ${engagement.length > 0 ? Math.round(engagement.reduce((sum: number, e: any) => sum + (e.readiness_rate || 0), 0) / engagement.length) : 0}%
+                </div>
+                <p>выбирают "готова попробовать"</p>
             </div>
-            <div class="stat-card">
-                <h3>🎯 Завершили курс</h3>
-                <div class="big-number">${stats.completedCourse}</div>
-                <p>${Math.round((stats.completedCourse / stats.totalUsers) * 100)}% от всех</p>
+            <div class="metric-card">
+                <h3 style="color: #667eea;">💡 Запросы помощи</h3>
+                <div class="metric-number" style="color: #ffc107;">
+                    ${engagement.length > 0 ? Math.round(engagement.reduce((sum: number, e: any) => sum + (e.help_request_rate || 0), 0) / engagement.length) : 0}%
+                </div>
+                <p>нуждаются в дополнительной поддержке</p>
             </div>
         </div>
 
-        <div class="stats-grid">
+        <div class="grid-2">
             <div class="chart-card">
-                <h3>📅 Распределение по дням</h3>
+                <h3>📈 Вовлеченность по дням</h3>
                 <div class="chart-container">
-                    <canvas id="usersByDayChart"></canvas>
+                    <canvas id="engagementChart"></canvas>
                 </div>
             </div>
             <div class="chart-card">
-                <h3>📊 Завершаемость по дням</h3>
-                <div class="chart-container">
-                    <canvas id="completionChart"></canvas>
-                </div>
-            </div>
-        </div>
-
-        <div class="stats-grid">
-            <div class="chart-card">
-                <h3>💭 Эмоциональная динамика</h3>
+                <h3>💭 Эмоциональный отклик</h3>
                 <div class="chart-container">
                     <canvas id="emotionalChart"></canvas>
                 </div>
             </div>
+        </div>
+
+        <div class="ranking-card">
+            <h3>🏆 Рейтинг эффективности упражнений</h3>
+            <p style="margin-bottom: 15px; color: #666;">
+                Оценка основана на: участии (30%), готовности (30%), качестве ответов (20%), простоте выполнения (20%)
+            </p>
+            <table class="ranking-table">
+                <thead>
+                    <tr>
+                        <th>Место</th>
+                        <th>Упражнение</th>
+                        <th>Эффективность</th>
+                        <th>Участие</th>
+                        <th>Готовность</th>
+                        <th>Качество ответов</th>
+                        <th>Простота</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${effectiveness.map((ex: any, index: number) => {
+                      const score = ex.effectiveness_score || 0;
+                      const scoreClass = score >= 80 ? 'score-excellent' : 
+                                       score >= 65 ? 'score-good' : 
+                                       score >= 50 ? 'score-average' : 'score-poor';
+                      return `
+                        <tr>
+                            <td><strong>${index + 1}</strong></td>
+                            <td><strong>День ${ex.day}:</strong> ${ex.exercise_name}</td>
+                            <td><span class="score-badge ${scoreClass}">${score.toFixed(1)}</span></td>
+                            <td>${(ex.participation_rate || 0).toFixed(1)}%</td>
+                            <td>${(ex.readiness_rate || 0).toFixed(1)}%</td>
+                            <td>${(ex.avg_response_quality || 0).toFixed(0)} сим.</td>
+                            <td>${(100 - (ex.help_request_rate || 0)).toFixed(1)}%</td>
+                        </tr>
+                      `;
+                    }).join('')}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="grid-2">
             <div class="chart-card">
-                <h3>📉 Удержание пользователей</h3>
+                <h3>🔄 Удержание после упражнений</h3>
                 <div class="chart-container">
                     <canvas id="retentionChart"></canvas>
+                </div>
+            </div>
+            <div class="chart-card">
+                <h3>📊 Готовность vs Помощь</h3>
+                <div class="chart-container">
+                    <canvas id="readinessChart"></canvas>
                 </div>
             </div>
         </div>
 
         <div class="insights">
-            <h3>🔍 Ключевые инсайты</h3>
+            <h3>💡 Ключевые инсайты и рекомендации</h3>
             <ul>
-                <li><strong>Конверсия:</strong> ${Math.round((stats.completedCourse / stats.totalUsers) * 100)}% пользователей завершают курс</li>
-                <li><strong>Самый сложный день:</strong> ${dropoffData.length > 0 ? 
-                  `День ${dropoffData.reduce((min: any, day: any) => day.retention_rate < min.retention_rate ? day : min).day}` : 
-                  'Данных пока недостаточно'}</li>
-                <li><strong>Общая активность:</strong> ${stats.activeToday} активных из ${stats.totalUsers} пользователей</li>
-                <li><strong>Эмоциональный тренд:</strong> ${emotionalData.length > 0 ? 
-                  (emotionalData[emotionalData.length - 1]?.positive > emotionalData[emotionalData.length - 1]?.negative ? 
-                    'Позитивный' : 'Требует внимания') : 'Анализируется'}</li>
+                ${effectiveness.length > 0 ? `
+                <li><strong>Самое эффективное упражнение:</strong> ${effectiveness[0]?.exercise_name} (День ${effectiveness[0]?.day}) с рейтингом ${effectiveness[0]?.effectiveness_score?.toFixed(1)}</li>
+                <li><strong>Требует доработки:</strong> ${effectiveness[effectiveness.length - 1]?.exercise_name} (День ${effectiveness[effectiveness.length - 1]?.day}) - низкий рейтинг ${effectiveness[effectiveness.length - 1]?.effectiveness_score?.toFixed(1)}</li>
+                ` : ''}
+                <li><strong>Общий тренд:</strong> ${engagement.reduce((sum: number, e: any) => sum + (e.help_request_rate || 0), 0) / engagement.length > 20 ? 'Участники часто просят помощь - стоит упростить инструкции' : 'Упражнения понятны большинству участников'}</li>
+                <li><strong>Активность:</strong> ${emotionalImpact.reduce((sum: number, e: any) => sum + (e.positive_rate || 0), 0) / emotionalImpact.length > 60 ? 'Позитивная реакция участников' : 'Смешанные реакции - стоит проанализировать отзывы'}</li>
             </ul>
         </div>
 
@@ -1248,78 +1323,51 @@ private setupAdminRoutes(): void {
     </div>
 
     <script>
-        // График распределения по дням
-        const usersByDayCtx = document.getElementById('usersByDayChart').getContext('2d');
-        new Chart(usersByDayCtx, {
-            type: 'bar',
-            data: {
-                labels: ['День 1', 'День 2', 'День 3', 'День 4', 'День 5', 'День 6', 'День 7'],
-                datasets: [{
-                    label: 'Пользователей на дне',
-                    data: ${JSON.stringify(detailedStats.usersByDay?.map((d: any) => d.count) || [0,0,0,0,0,0,0])},
-                    backgroundColor: 'rgba(102, 126, 234, 0.6)',
-                    borderColor: 'rgba(102, 126, 234, 1)',
-                    borderWidth: 2
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: { legend: { display: false } },
-                scales: {
-                    y: { beginAtZero: true }
-                }
-            }
-        });
-
-        // График завершаемости
-        const completionCtx = document.getElementById('completionChart').getContext('2d');
-        new Chart(completionCtx, {
+        // График вовлеченности
+        const engagementCtx = document.getElementById('engagementChart').getContext('2d');
+        new Chart(engagementCtx, {
             type: 'line',
             data: {
                 labels: ['День 1', 'День 2', 'День 3', 'День 4', 'День 5', 'День 6', 'День 7'],
                 datasets: [{
-                    label: 'Завершили день',
-                    data: ${JSON.stringify(completionData?.map((d: any) => d.completed) || [0,0,0,0,0,0,0])},
-                    borderColor: 'rgba(118, 75, 162, 1)',
-                    backgroundColor: 'rgba(118, 75, 162, 0.1)',
+                    label: 'Вовлеченность (%)',
+                    data: ${JSON.stringify(engagement.map((e: any) => e.engagement_rate || 0))},
+                    borderColor: '#667eea',
+                    backgroundColor: 'rgba(102, 126, 234, 0.1)',
                     fill: true,
+                    tension: 0.4
+                }, {
+                    label: 'Готовность (%)',
+                    data: ${JSON.stringify(engagement.map((e: any) => e.readiness_rate || 0))},
+                    borderColor: '#28a745',
+                    backgroundColor: 'rgba(40, 167, 69, 0.1)',
+                    fill: false,
                     tension: 0.4
                 }]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: { legend: { display: false } },
-                scales: { y: { beginAtZero: true } }
+                scales: { y: { beginAtZero: true, max: 100 } }
             }
         });
 
-        // График эмоциональной динамики  
+        // График эмоций
         const emotionalCtx = document.getElementById('emotionalChart').getContext('2d');
         new Chart(emotionalCtx, {
-            type: 'doughnut',
+            type: 'bar',
             data: {
-                labels: ['Позитивные', 'Негативные', 'Нейтральные'],
+                labels: ['День 1', 'День 2', 'День 3', 'День 4', 'День 5', 'День 6', 'День 7'],
                 datasets: [{
-                    data: [
-                        ${emotionalData?.reduce((sum: number, d: any) => sum + d.positive, 0) || 0},
-                        ${emotionalData?.reduce((sum: number, d: any) => sum + d.negative, 0) || 0},
-                        ${emotionalData?.reduce((sum: number, d: any) => sum + (d.total_responses - d.positive - d.negative), 0) || 0}
-                    ],
-                    backgroundColor: [
-                        'rgba(46, 204, 113, 0.8)',
-                        'rgba(231, 76, 60, 0.8)', 
-                        'rgba(149, 165, 166, 0.8)'
-                    ]
+                    label: 'Позитивные (%)',
+                    data: ${JSON.stringify(emotionalImpact.map((e: any) => e.positive_rate || 0))},
+                    backgroundColor: '#28a745'
                 }]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: {
-                    legend: { position: 'bottom' }
-                }
+                scales: { y: { beginAtZero: true, max: 100 } }
             }
         });
 
@@ -1328,12 +1376,12 @@ private setupAdminRoutes(): void {
         new Chart(retentionCtx, {
             type: 'line',
             data: {
-                labels: ${JSON.stringify(dropoffData?.map((d: any) => `День ${d.day}`) || ['День 2', 'День 3', 'День 4', 'День 5', 'День 6', 'День 7'])},
+                labels: ${JSON.stringify(retention.map((r: any) => `День ${r.day}`))},
                 datasets: [{
                     label: 'Удержание (%)',
-                    data: ${JSON.stringify(dropoffData?.map((d: any) => d.retention_rate) || [100, 85, 75, 70, 65, 60])},
-                    borderColor: 'rgba(255, 99, 132, 1)',
-                    backgroundColor: 'rgba(255, 99, 132, 0.1)',
+                    data: ${JSON.stringify(retention.map((r: any) => r.retention_rate || 0))},
+                    borderColor: '#ff6b6b',
+                    backgroundColor: 'rgba(255, 107, 107, 0.1)',
                     fill: true,
                     tension: 0.4
                 }]
@@ -1341,13 +1389,32 @@ private setupAdminRoutes(): void {
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: { legend: { display: false } },
-                scales: {
-                    y: { 
-                        beginAtZero: true,
-                        max: 100,
-                        ticks: { callback: function(value) { return value + '%'; } }
-                    }
+                scales: { y: { beginAtZero: true, max: 100 } }
+            }
+        });
+
+        // График готовности vs помощи
+        const readinessCtx = document.getElementById('readinessChart').getContext('2d');
+        new Chart(readinessCtx, {
+            type: 'bar',
+            data: {
+                labels: ['День 1', 'День 2', 'День 3', 'День 4', 'День 5', 'День 6', 'День 7'],
+                datasets: [{
+                    label: 'Готовы попробовать (%)',
+                    data: ${JSON.stringify(engagement.map((e: any) => e.readiness_rate || 0))},
+                    backgroundColor: '#28a745'
+                }, {
+                    label: 'Нужна помощь (%)',
+                    data: ${JSON.stringify(engagement.map((e: any) => e.help_request_rate || 0))},
+                    backgroundColor: '#ffc107'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: { 
+                    y: { beginAtZero: true, max: 100 },
+                    x: { stacked: false }
                 }
             }
         });
@@ -1357,7 +1424,7 @@ private setupAdminRoutes(): void {
 
       res.send(html);
     } catch (error) {
-      console.error('❌ Ошибка аналитики:', error);
+      console.error('❌ Ошибка анализа упражнений:', error);
       res.status(500).send(`Ошибка: ${error}`);
     }
   });
@@ -1572,7 +1639,7 @@ private setupAdminRoutes(): void {
 
         <div style="text-align: center; margin-top: 30px;">
             <a href="/dashboard" class="action-btn">🏠 На главную</a>
-            <a href="/dashboard/analytics" class="action-btn">📊 Аналитика</a>
+            <a href="/dashboard/responses" class="action-btn">💭 Ответы пользователей</a>
             <a href="/dashboard/export/responses" class="action-btn">📥 Экспорт CSV</a>
         </div>
     </div>
@@ -1631,7 +1698,7 @@ private setupAdminRoutes(): void {
         }
         .nav-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
             gap: 20px;
             margin-bottom: 30px;
         }
@@ -1701,11 +1768,6 @@ private setupAdminRoutes(): void {
         </div>
 
         <div class="nav-grid">
-            <a href="/dashboard/analytics" class="nav-card">
-                <h3>📊 Аналитика</h3>
-                <p>Глубокий анализ данных, графики завершаемости и эмоциональная карта курса</p>
-            </a>
-            
             <a href="/dashboard/exercises" class="nav-card">
                 <h3>🎯 Эффективность упражнений</h3>
                 <p>Рейтинг и анализ воздействия каждого упражнения на участников</p>
