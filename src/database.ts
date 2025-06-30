@@ -377,6 +377,22 @@ export class Database {
     await this.pool.query(query, [userId, triggerWord, message]);
   }
 
+  // Пометить алерт как обработанный
+async markAlertAsHandled(alertId: number): Promise<void> {
+  try {
+    const query = `
+      UPDATE alerts 
+      SET handled = true 
+      WHERE id = $1
+    `;
+    await this.pool.query(query, [alertId]);
+    console.log(`✅ Алерт ${alertId} помечен как обработанный`);
+  } catch (error) {
+    console.error('❌ Ошибка markAlertAsHandled:', error);
+    throw error;
+  }
+}
+
   async getStats(): Promise<DbStats> {
     const queries = {
       totalUsers: 'SELECT COUNT(*) as count FROM users',
@@ -600,7 +616,8 @@ async getDetailedStats(): Promise<any> {
   }
 
   // Содержательные ответы для анализа
-  async getMeaningfulResponses(limit: number = 20): Promise<any[]> {
+ async getMeaningfulResponses(limit: number = 20): Promise<any[]> {
+  try {
     const query = `
       SELECT 
         u.name,
@@ -614,8 +631,15 @@ async getDetailedStats(): Promise<any> {
       JOIN users u ON r.user_id = u.id
       WHERE r.response_type = 'text' 
         AND LENGTH(r.response_text) > 50
+        AND r.question_type != 'button_choice'
+        AND r.question_type NOT ILIKE '%callback%'
+        AND r.question_type NOT ILIKE '%evening_%'
+        AND r.question_type NOT ILIKE '%phrase_%'
+        AND r.question_type NOT ILIKE '%exercise_%'
         AND r.response_text NOT ILIKE '%спасибо%'
         AND r.response_text NOT ILIKE '%понятно%'
+        AND r.response_text NOT ILIKE '%ок%'
+        AND r.response_text NOT ILIKE '%хорошо%' 
         AND r.created_at > NOW() - INTERVAL '30 days'
       ORDER BY LENGTH(r.response_text) DESC, r.created_at DESC
       LIMIT $1;
@@ -623,15 +647,22 @@ async getDetailedStats(): Promise<any> {
     
     const result = await this.pool.query(query, [limit]);
     return result.rows;
+  } catch (error) {
+    console.error('❌ Ошибка getMeaningfulResponses:', error);
+    return [];
   }
+}
 
   // Поиск ответов с фильтрами
-  async searchResponses(filters: {
-    day?: number;
-    keyword?: string;
-    minLength?: number;
-    limit?: number;
-  }): Promise<any[]> {
+  // Замените метод searchResponses в database.ts на этот исправленный вариант:
+
+async searchResponses(filters: {
+  day?: number;
+  keyword?: string;
+  minLength?: number;
+  limit?: number;
+}): Promise<any[]> {
+  try {
     let query = `
       SELECT 
         u.name,
@@ -644,6 +675,12 @@ async getDetailedStats(): Promise<any> {
       JOIN users u ON r.user_id = u.id
       WHERE r.response_type = 'text'
         AND r.response_text IS NOT NULL
+        AND LENGTH(r.response_text) > 3
+        AND r.question_type != 'button_choice'
+        AND r.question_type NOT ILIKE '%callback%'
+        AND r.question_type NOT ILIKE '%evening_%'
+        AND r.question_type NOT ILIKE '%phrase_%'
+        AND r.question_type NOT ILIKE '%exercise_%'
     `;
     
     const params: any[] = [];
@@ -667,12 +704,16 @@ async getDetailedStats(): Promise<any> {
       paramIndex++;
     }
     
-    query += ` ORDER BY r.created_at DESC LIMIT $${paramIndex}`;
-    params.push(filters.limit || 50);
+    query += ` ORDER BY r.created_at DESC LIMIT ${paramIndex}`;
+    params.push(filters.limit || 200);
     
     const result = await this.pool.query(query, params);
     return result.rows;
+  } catch (error) {
+    console.error('❌ Ошибка searchResponses:', error);
+    return [];
   }
+}
 
   // Проблемные дни (низкое удержание)
   async getDropoffDays(): Promise<any[]> {

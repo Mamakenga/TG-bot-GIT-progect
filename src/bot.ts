@@ -803,6 +803,280 @@ private setupAdminRoutes(): void {
     }
   });
 
+  // СТРАНИЦА АЛЕРТОВ БЕЗОПАСНОСТИ
+  this.app.get('/dashboard/alerts', authenticate, async (req, res) => {
+    try {
+      const alerts = await this.database.getAlerts();
+      const unhandledCount = alerts.filter((alert: any) => !alert.handled).length;
+
+      const html = `<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🚨 Алерты безопасности</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+            line-height: 1.6;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container { max-width: 1200px; margin: 0 auto; }
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            color: #667eea;
+            padding: 30px;
+            text-align: center;
+            margin-bottom: 30px;
+            border-radius: 15px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+        }
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .alert-card {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            margin-bottom: 15px;
+            border-left: 5px solid ${unhandledCount > 0 ? '#ff6b6b' : '#28a745'};
+        }
+        .alert-card.unhandled {
+            border-left-color: #ff6b6b;
+            background: rgba(255, 107, 107, 0.05);
+        }
+        .alert-card.handled {
+            border-left-color: #28a745;
+            background: rgba(40, 167, 69, 0.05);
+        }
+        .alert-meta {
+            font-size: 0.9em;
+            color: #666;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .alert-trigger {
+            background: #fff3cd;
+            color: #856404;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.8em;
+            font-weight: bold;
+        }
+        .alert-message {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 10px 0;
+            line-height: 1.5;
+            border-left: 3px solid #ff6b6b;
+        }
+        .action-btn {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            text-decoration: none;
+            display: inline-block;
+            margin: 4px 4px 4px 0;
+            transition: all 0.3s ease;
+            font-weight: 500;
+            cursor: pointer;
+            font-size: 0.9em;
+        }
+        .action-btn:hover { 
+            transform: translateY(-2px);
+            box-shadow: 0 6px 15px rgba(102, 126, 234, 0.4);
+        }
+        .mark-handled-btn {
+            background: linear-gradient(135deg, #28a745, #20c997);
+        }
+        .mark-handled-btn:hover {
+            box-shadow: 0 6px 15px rgba(40, 167, 69, 0.4);
+        }
+        .stats-summary {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .urgent-notice {
+            background: rgba(255, 107, 107, 0.1);
+            border: 2px solid #ff6b6b;
+            padding: 20px;
+            border-radius: 15px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .status-badge {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.8em;
+            font-weight: bold;
+        }
+        .status-handled {
+            background: #d4edda;
+            color: #155724;
+        }
+        .status-unhandled {
+            background: #f8d7da;
+            color: #721c24;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚨 Алерты безопасности</h1>
+            <p>Мониторинг критических сообщений участников курса</p>
+        </div>
+
+        ${unhandledCount > 0 ? `
+        <div class="urgent-notice">
+            <h3 style="color: #ff6b6b; margin-bottom: 10px;">⚠️ ВНИМАНИЕ!</h3>
+            <p><strong>${unhandledCount} необработанных алертов</strong> требуют вашего внимания</p>
+            <p style="font-size: 0.9em; margin-top: 8px;">Рекомендуется связаться с пользователями для предоставления поддержки</p>
+        </div>
+        ` : ''}
+
+        <div class="stats-summary">
+            <strong>Всего алертов: ${alerts.length}</strong> • 
+            <span style="color: #ff6b6b;">Необработанных: ${unhandledCount}</span> • 
+            <span style="color: #28a745;">Обработанных: ${alerts.length - unhandledCount}</span>
+        </div>
+
+        ${alerts.length === 0 ? `
+        <div class="alert-card" style="text-align: center; border-left-color: #28a745;">
+            <h3 style="color: #28a745;">✅ Алертов нет</h3>
+            <p>Все участники курса чувствуют себя хорошо!</p>
+        </div>
+        ` : ''}
+
+        ${alerts.map((alert: any) => `
+        <div class="alert-card ${alert.handled ? 'handled' : 'unhandled'}">
+            <div class="alert-meta">
+                <div>
+                    <strong>${alert.first_name || 'Пользователь'}</strong> 
+                    • ID: ${alert.telegram_id || alert.username}
+                    • ${new Date(alert.created_at).toLocaleString('ru-RU')}
+                </div>
+                <div>
+                    <span class="alert-trigger">Триггер: ${alert.trigger_word || 'общий'}</span>
+                    <span class="status-badge ${alert.handled ? 'status-handled' : 'status-unhandled'}">
+                        ${alert.handled ? '✅ Обработан' : '⚠️ Требует внимания'}
+                    </span>
+                </div>
+            </div>
+            
+            <div class="alert-message">
+                <strong>Сообщение пользователя:</strong><br>
+                "${alert.message}"
+            </div>
+            
+            <div style="margin-top: 15px;">
+                ${!alert.handled ? `
+                <button onclick="markAsHandled(${alert.id})" class="action-btn mark-handled-btn">
+                    ✅ Пометить как обработанный
+                </button>
+                ` : ''}
+                <a href="tg://user?id=${alert.telegram_id}" class="action-btn">
+                    💬 Написать в Telegram
+                </a>
+                <button onclick="copyToClipboard('${alert.message.replace(/'/g, "\\'")}', '${alert.first_name}')" class="action-btn">
+                    📋 Копировать
+                </button>
+            </div>
+        </div>
+        `).join('')}
+
+        <div style="text-align: center; margin-top: 30px;">
+            <a href="/dashboard" class="action-btn">🏠 На главную</a>
+            <a href="/dashboard/export/alerts" class="action-btn">📥 Экспорт алертов CSV</a>
+        </div>
+
+        <div style="background: rgba(255, 255, 255, 0.95); padding: 20px; border-radius: 15px; margin-top: 20px; border-left: 5px solid #17a2b8;">
+            <h3 style="color: #17a2b8; margin-bottom: 10px;">📞 Контакты экстренной помощи</h3>
+            <p><strong>Телефон доверия:</strong> 8-800-2000-122 (бесплатно, круглосуточно)</p>
+            <p><strong>Экстренная помощь:</strong> 112</p>
+            <p><strong>Психолог проекта:</strong> @amalinovskaya_psy</p>
+        </div>
+    </div>
+
+    <script>
+        async function markAsHandled(alertId) {
+            try {
+                const response = await fetch('/dashboard/alerts/mark-handled', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': '${req.headers.authorization}'
+                    },
+                    body: JSON.stringify({ alertId })
+                });
+                
+                if (response.ok) {
+                    location.reload();
+                } else {
+                    alert('Ошибка при обновлении статуса алерта');
+                }
+            } catch (error) {
+                alert('Ошибка сети: ' + error.message);
+            }
+        }
+
+        function copyToClipboard(message, userName) {
+            const text = \`Алерт от \${userName}:\\n"\${message}"\`;
+            navigator.clipboard.writeText(text).then(() => {
+                alert('Скопировано в буфер обмена');
+            }).catch(() => {
+                alert('Ошибка копирования');
+            });
+        }
+    </script>
+</body>
+</html>`;
+
+      res.send(html);
+    } catch (error) {
+      console.error('❌ Ошибка страницы алертов:', error);
+      res.status(500).send(`Ошибка: ${error}`);
+    }
+  });
+
+  // API для отметки алерта как обработанного
+  this.app.post('/dashboard/alerts/mark-handled', authenticate, async (req, res) => {
+    try {
+      const { alertId } = req.body;
+      
+      if (!alertId) {
+        return res.status(400).json({ error: 'alertId is required' });
+      }
+
+      await this.database.markAlertAsHandled(parseInt(alertId));
+      res.json({ success: true });
+      
+      console.log(`✅ Алерт ${alertId} помечен как обработанный`);
+    } catch (error) {
+      console.error('❌ Ошибка отметки алерта:', error);
+      res.status(500).json({ error: 'Database error' });
+    }
+  });
+
   // АНАЛИТИКА с красивыми графиками
   this.app.get('/dashboard/analytics', authenticate, async (req, res) => {
     try {
