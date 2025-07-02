@@ -1,6 +1,7 @@
-// src/keyboards/KeyboardManager.ts
+// src/keyboards/KeyboardManager.ts - ИСПРАВЛЕННАЯ ВЕРСИЯ
 export class KeyboardManager {
-  static getMainKeyboard(user: any): any {
+  // ✅ УБРАЛИ static, теперь это обычный метод
+  getMainKeyboard(user: any): any {
     if (!user) {
       return {
         keyboard: [
@@ -43,5 +44,11 @@ export class KeyboardManager {
       resize_keyboard: true,
       persistent: true
     };
+  }
+
+  // ✅ СТАТИЧЕСКИЙ МЕТОД для обратной совместимости (если где-то вызывается)
+  static getMainKeyboard(user: any): any {
+    const manager = new KeyboardManager();
+    return manager.getMainKeyboard(user);
   }
 }
