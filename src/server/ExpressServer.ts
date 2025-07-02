@@ -60,7 +60,7 @@ export class ExpressServer {
     this.app.get('/', (req, res) => res.redirect('/dashboard'));
     
     // Webhook для Telegram
-    this.app.post(`/bot${process.env.TELEGRAM_TOKEN}`, async (req, res) => {
+    this.app.post(`/bot${process.env.TELEGRAM_BOT_TOKEN}`, async (req, res) => {
       try {
         console.log('📨 Получено обновление от Telegram');
         await this.bot.processUpdate(req.body);
