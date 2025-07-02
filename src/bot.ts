@@ -100,7 +100,6 @@ class SelfCareBot {
     
     // ✅ ИСПРАВЛЕННЫЕ КОМАНДЫ ТЕСТИРОВАНИЯ
     this.bot.onText(/\/test/, this.handleTest.bind(this));
-    this.bot.onText(/\/testday (\d+)/, this.handleTestDay.bind(this));
     this.bot.onText(/\/nextday/, this.handleNextDay.bind(this));
     this.bot.onText(/\/pause/, this.handlePause.bind(this));
     this.bot.onText(/\/resume/, this.handleResume.bind(this));
@@ -464,7 +463,6 @@ class SelfCareBot {
             `Ты получила все сообщения дня ${currentDay}.\n` +
             `Используй команды:\n` +
             `• /nextday - перейти к дню ${currentDay + 1}\n` +
-            `• /testday 3 - посмотреть день 3\n` +
             `• /test - повторить тест текущего дня`
           );
         } catch (error) {
@@ -475,58 +473,6 @@ class SelfCareBot {
     } catch (error) {
       console.error('❌ Ошибка в handleTest:', error);
       await this.bot.sendMessage(chatId, 'Произошла ошибка при тестировании');
-    }
-  }
-
-  // ✅ ИСПРАВЛЕННАЯ команда /testday - НЕ МЕНЯЕТ текущий день пользователя
-  private async handleTestDay(msg: TelegramBot.Message, match: RegExpExecArray | null): Promise<void> {
-    const telegramId = msg.from?.id;
-    const chatId = msg.chat.id;
-    const dayNumber = match ? parseInt(match[1]) : 1;
-
-    if (!telegramId) return;
-
-    try {
-      if (dayNumber < 1 || dayNumber > 7) {
-        await this.bot.sendMessage(chatId, 'Укажи день от 1 до 7. Например: /testday 3');
-        return;
-      }
-
-      const dayContent = getDayContent(dayNumber);
-      if (!dayContent) {
-        await this.bot.sendMessage(chatId, `Контент для дня ${dayNumber} не найден`);
-        return;
-      }
-
-      // ✅ ПОКАЗЫВАЕМ ТОЛЬКО КРАТКИЙ ОБЗОР, НЕ МЕНЯЕМ ДЕНЬ ПОЛЬЗОВАТЕЛЯ
-      await this.bot.sendMessage(chatId, 
-        `📖 ПРЕДВАРИТЕЛЬНЫЙ ПРОСМОТР: День ${dayNumber}\n` +
-        `📋 Тема: "${dayContent.title}"\n\n` +
-        `=== УТРО ===\n${dayContent.morningMessage}\n\n` +
-        `=== УПРАЖНЕНИЕ ===\n${dayContent.exerciseMessage}\n\n` +
-        `=== ФРАЗА ДНЯ ===\n${dayContent.phraseOfDay}\n\n` +
-        `=== ВЕЧЕР ===\n${dayContent.eveningMessage}`
-      );
-
-      if (dayContent.options) {
-        await this.bot.sendMessage(chatId, 
-          `🔘 Варианты ответов:\n` +
-          dayContent.options.map((opt, i) => `${i + 1}. ${opt.text}`).join('\n')
-        );
-      }
-
-      // ✅ НАПОМИНАЕМ КАКОЙ ТЕКУЩИЙ ДЕНЬ
-      const user = await this.database.getUser(telegramId);
-      if (user) {
-        await this.bot.sendMessage(chatId, 
-          `ℹ️ Твой текущий день: ${user.current_day || 1}\n` +
-          `Для перехода к дню ${dayNumber} используй /nextday`
-        );
-      }
-
-    } catch (error) {
-      console.error('❌ Ошибка в handleTestDay:', error);
-      await this.bot.sendMessage(chatId, 'Произошла ошибка при просмотре дня');
     }
   }
 
@@ -568,8 +514,7 @@ class SelfCareBot {
         `Теперь команда /test покажет день ${nextDay}.\n\n` +
         `💡 Доступные команды:\n` +
         `• /test - тест дня ${nextDay}\n` +
-        `• /testday ${nextDay} - просмотр дня ${nextDay}\n` +
-        `• /nextday - перейти к дню ${nextDay + 1 <= 7 ? nextDay + 1 : 'завершить курс'}`
+       `• /nextday - перейти к дню ${nextDay + 1 <= 7 ? nextDay + 1 : 'завершить курс'}`
       );
 
     } catch (error) {
