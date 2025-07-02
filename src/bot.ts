@@ -98,16 +98,16 @@ class SelfCareBot {
     this.bot.onText(/\/help/, this.commandHandlers.handleHelp.bind(this.commandHandlers));
     this.bot.onText(/\/stats/, this.handleStats.bind(this));
     
-    // ✅ ИСПРАВЛЕННЫЕ КОМАНДЫ ТЕСТИРОВАНИЯ
-    this.bot.onText(/\/test/, this.handleTest.bind(this));
-    this.bot.onText(/\/nextday/, this.handleNextDay.bind(this));
-    this.bot.onText(/\/pause/, this.handlePause.bind(this));
-    this.bot.onText(/\/resume/, this.handleResume.bind(this));
+    // ✅ ВАЖНО: КОМАНДЫ АНТИДУБЛИРОВАНИЯ ПЕРЕД /test!
+this.bot.onText(/\/testreminder$/, this.handleTestReminder.bind(this));
+this.bot.onText(/\/clearlogs$/, this.handleClearLogs.bind(this));
+this.bot.onText(/\/checklogs$/, this.handleCheckLogs.bind(this));
 
-    // ✅ КОМАНДЫ ТЕСТИРОВАНИЯ АНТИДУБЛИРОВАНИЯ (только для админа)
-    this.bot.onText(/\/testreminder/, this.handleTestReminder.bind(this));
-    this.bot.onText(/\/clearlogs/, this.handleClearLogs.bind(this));
-    this.bot.onText(/\/checklogs/, this.handleCheckLogs.bind(this));
+// ✅ КОМАНДЫ ТЕСТИРОВАНИЯ (ПОСЛЕ команд антидублирования)
+this.bot.onText(/\/test$/, this.handleTest.bind(this));
+this.bot.onText(/\/nextday$/, this.handleNextDay.bind(this));
+this.bot.onText(/\/pause$/, this.handlePause.bind(this));
+this.bot.onText(/\/resume$/, this.handleResume.bind(this));
 
     // Обработка кнопок меню
     this.bot.onText(/^🌱 Старт$/, this.commandHandlers.handleStart.bind(this.commandHandlers));
