@@ -24,7 +24,7 @@ export const config = {
     port: Number(process.env.PORT) || 3000
   },
   security: {
-    alertKeywords: (process.env.ALERT_KEYWORDS || 'не хочу жить,покончить с собой,бессмысленно,суицид,умереть,покончить с жизнью,нет смысла жить').split(','),
+    alertKeywords: (process.env.ALERT_KEYWORDS || 'не хочу жить,покончить с собой,бессмысленно,суицид,умереть,покончить с жизнью,нет смысла жить,совершить самоубийство').split(','),
     psychologistEmail: process.env.PSYCHOLOGIST_EMAIL || 'help@harmony4soul.com',
     adminPassword: process.env.ADMIN_PASSWORD || 'admin123'
   },
