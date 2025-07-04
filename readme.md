@@ -83,20 +83,54 @@ npm start
 ## 📁 Структура проекта
 
 ```
-telegram-bot-self-care/
+TG-bot-GIT-progect/
 ├── src/
-│   ├── bot.ts              # Основной класс бота
-│   ├── database.ts         # Работа с PostgreSQL
-│   ├── config.ts           # Конфигурация
-│   ├── course-logic.ts     # Логика курса
-│   ├── types.ts            # TypeScript типы
-│   └── utils.ts            # Утилиты
-├── dist/                   # Скомпилированный JavaScript
-├── package.json            # Зависимости проекта
-├── tsconfig.json           # Настройки TypeScript
-├── railway.json            # Конфиг для Railway
-├── .env                    # Конфигурация (не в git)
-└── README.md               # Документация
+│   ├── bot.ts                      # Основной класс бота
+│   ├── config.ts                   # Конфигурация
+│   ├── course-logic.ts             # Логика курса
+│   ├── database.ts                 # Работа с PostgreSQL  
+│   ├── types.ts                    # TypeScript типы
+│   ├── utils.ts                    # Утилиты
+│   ├── dashboard/                  # Веб-дашборд
+│   │   ├── DashboardService.ts     # Сервис дашборда
+│   │   └── templates/              # HTML шаблоны
+│   │       └── DashboardTemplates.ts
+│   ├── handlers/                   # Обработчики команд
+│   │   └── CommandHandlers.ts      # Telegram команды
+│   ├── keyboards/                  # Клавиатуры бота
+│   │   └── KeyboardManager.ts      # Управление кнопками
+│   ├── scheduling/                 # Планировщик
+│   │   └── ReminderScheduler.ts    # Напоминания
+│   ├── server/                     # Веб-сервер
+│   │   ├── ExpressServer.ts        # Express сервер
+│   │   └── routes/                 # API роуты
+│   │       ├── adminRoutes.ts      # Админ панель
+│   │       └── webhookRoutes.ts    # Webhook для Telegram
+│   └── utils/                      # Дополнительные утилиты
+│       └── Logger.ts               # Система логирования
+├── scripts/                        # Вспомогательные скрипты
+│   └── check-progress.js           # Проверка прогресса
+├── tests/                          # Автоматизированные тесты
+│   ├── unit/                       # Юнит-тесты (32 теста)
+│   │   ├── utils.test.ts           # Тесты утилит
+│   │   ├── course-logic.test.ts    # Тесты логики курса
+│   │   └── config.test.ts          # Тесты конфигурации
+│   ├── integration/                # Интеграционные тесты (150+ тестов)
+│   │   ├── database.test.ts        # Тесты БД операций
+│   │   ├── bot-commands.test.ts    # Тесты команд бота
+│   │   ├── reminder-system.test.ts # Тесты системы напоминаний
+│   │   └── dashboard-api.test.ts   # Тесты API дашборда
+│   ├── __mocks__/                  # Моки для тестов
+│   │   └── pg.ts                   # Мок PostgreSQL
+│   └── setup.ts                    # Настройка Jest
+├── dist/                           # Скомпилированный JavaScript
+├── jest.config.js                  # Конфигурация Jest
+├── LICENSE                         # MIT лицензия
+├── package.json                    # Зависимости проекта
+├── tsconfig.json                   # Настройки TypeScript
+├── .env                            # Конфигурация (не в git)
+├── .env.test                       # Тестовая конфигурация (не в git)
+└── README.md                       # Документация
 ```
 
 ## 🎯 Использование
@@ -217,10 +251,76 @@ npm start
 
 # Проверка типов TypeScript
 npx tsc --noEmit
-
-# Инициализация базы данных
-npm run setup-db
 ```
+
+### 🧪 Тестирование
+
+Проект включает полный набор автоматизированных тестов:
+
+#### Команды тестирования:
+```bash
+# Запуск всех тестов (180+ тестов)
+npm test
+
+# Только юнит-тесты (32 теста)
+npm run test:unit
+
+# Только интеграционные тесты (150+ тестов)
+npm run test:integration
+
+# Режим наблюдения (автоперезапуск при изменениях)
+npm run test:watch
+
+# Отчет покрытия кода
+npm run test:coverage
+```
+
+#### Структура тестов:
+```
+tests/
+├── unit/                           # Юнит-тесты (быстрые)
+│   ├── utils.test.ts              # Тесты утилит
+│   ├── course-logic.test.ts       # Тесты логики курса
+│   └── config.test.ts             # Тесты конфигурации
+├── integration/                    # Интеграционные тесты
+│   ├── database.test.ts           # Тесты БД операций
+│   ├── bot-commands.test.ts       # Тесты команд бота
+│   ├── reminder-system.test.ts    # Тесты системы напоминаний
+│   └── dashboard-api.test.ts      # Тесты API дашборда
+├── __mocks__/                     # Моки для тестов
+│   └── pg.ts                      # Мок PostgreSQL
+└── setup.ts                       # Настройка Jest
+```
+
+#### Что тестируется:
+
+**Юнит-тесты:**
+- ✅ Утилиты (валидация, форматирование, безопасность)
+- ✅ Логика курса (контент дней, структура)
+- ✅ Конфигурация (переменные окружения)
+
+**Интеграционные тесты:**
+- ✅ Операции с базой данных (CRUD пользователей)
+- ✅ Команды Telegram бота (`/start`, `/help`, `/progress`)
+- ✅ Система напоминаний и антидублирование
+- ✅ API дашборда (аутентификация, экспорт данных)
+- ✅ Обработка ошибок и edge cases
+
+#### Настройка тестовой среды:
+```bash
+# Создайте .env.test файл
+cp .env .env.test
+
+# Укажите тестовую БД в .env.test
+DATABASE_URL=postgresql://test:test@localhost:5432/test_db
+TELEGRAM_BOT_TOKEN=test_token_123
+```
+
+#### Покрытие кода:
+Текущее покрытие тестами:
+- **Юнит-тесты:** 75%+ для протестированных модулей
+- **Интеграционные:** Полное покрытие основных флоу
+- **Целевое покрытие:** 80%+ для критической функциональности
 
 ### Переменные окружения для разработки:
 ```bash
@@ -315,6 +415,23 @@ npx ts-node src/database.ts
 1. Проверьте `PORT` и `ADMIN_PASSWORD`
 2. Убедитесь, что Express сервер запущен
 3. Проверьте файрвол и сетевые настройки
+
+### Тесты не проходят:
+```bash
+# Проверка тестовой среды
+npm run test:unit       # Быстрые юнит-тесты
+
+# Проблемы с БД в интеграционных тестах
+npm run test:integration
+
+# Проверка покрытия кода
+npm run test:coverage
+```
+
+**Частые проблемы:**
+- **Тесты БД:** Убедитесь, что `DATABASE_URL` в `.env.test` указывает на тестовую БД
+- **Таймауты:** Увеличьте `testTimeout` в `jest.config.js`
+- **Порты заняты:** Измените порты в тестовой конфигурации
 
 ## 📝 Лицензия
 

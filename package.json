@@ -7,6 +7,11 @@
     "start": "node dist/bot.js",
     "build": "tsc",
     "dev": "ts-node src/bot.ts",
+    "test": "jest",
+    "test:unit": "jest tests/unit",
+    "test:integration": "jest tests/integration",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
     "postinstall": "npm run build"
   },
   "dependencies": {
@@ -27,6 +32,7 @@
     "@types/node-telegram-bot-api": "^0.64.0",
     "@types/pg": "^8.10.0",
     "jest": "^30.0.3",
+    "supertest": "^7.0.0",
     "ts-jest": "^29.4.0",
     "ts-node": "^10.9.0"
   },
