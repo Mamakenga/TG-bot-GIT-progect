@@ -414,7 +414,7 @@ export class Database {
   async getStats(): Promise<DbStats> {
     const queries = {
       totalUsers: 'SELECT COUNT(*) as count FROM users',
-      activeToday: `SELECT COUNT(DISTINCT user_id) as count FROM user_responses WHERE DATE(created_at) = CURRENT_DATE`,
+      activeToday: `SELECT COUNT(DISTINCT user_id) as count FROM responses WHERE DATE(created_at) = CURRENT_DATE`,
       completedCourse: 'SELECT COUNT(*) as count FROM users WHERE course_completed = true'
     };
 
