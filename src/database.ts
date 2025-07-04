@@ -1,25 +1,6 @@
 import { Pool, PoolClient } from 'pg';
 import { config } from './config';
-
-export interface DbUser {
-  id: number;
-  telegram_id: number;
-  name: string | null;
-  current_day: number;
-  personalization_type: string | null;
-  notifications_enabled: boolean;
-  preferred_time: string;
-  course_completed: boolean;
-  is_paused?: boolean; // Опциональное поле для совместимости
-  created_at: Date;
-  updated_at: Date;
-}
-
-export interface DbStats {
-  totalUsers: number;
-  activeToday: number;
-  completedCourse: number;
-}
+import { User, Stats } from './types';
 
 export class Database {
   // ✅ ИСПРАВЛЕНО: Сделали pool публичным для команд тестирования
@@ -160,7 +141,7 @@ export class Database {
     }
   }
 
-  async createUser(telegramId: number, name?: string): Promise<DbUser> {
+  async createUser(telegramId: number, name?: string): Promise<User> {
     const query = `
       INSERT INTO users (telegram_id, name) 
       VALUES ($1, $2) 
@@ -173,7 +154,7 @@ export class Database {
     return result.rows[0];
   }
 
-  async getUser(telegramId: number): Promise<DbUser | null> {
+  async getUser(telegramId: number): Promise<User | null> {
     const query = 'SELECT * FROM users WHERE telegram_id = $1';
     const result = await this.pool.query(query, [telegramId]);
     return result.rows[0] || null;
@@ -234,7 +215,7 @@ export class Database {
   }
 
   // ✅ НОВЫЙ МЕТОД: Получение активных пользователей для отправки напоминаний
-  async getActiveUsers(): Promise<DbUser[]> {
+  async getActiveUsers(): Promise<User[]> {
     try {
       // Сначала проверяем, существует ли поле is_paused
       const checkColumn = await this.pool.query(`
@@ -411,14 +392,14 @@ export class Database {
     }
   }
 
-  async getStats(): Promise<DbStats> {
+  async getStats(): Promise<Stats> {
     const queries = {
       totalUsers: 'SELECT COUNT(*) as count FROM users',
       activeToday: `SELECT COUNT(DISTINCT user_id) as count FROM responses WHERE DATE(created_at) = CURRENT_DATE`,
       completedCourse: 'SELECT COUNT(*) as count FROM users WHERE course_completed = true'
     };
 
-    const stats: DbStats = {
+    const stats: Stats = {
       totalUsers: 0,
       activeToday: 0,
       completedCourse: 0

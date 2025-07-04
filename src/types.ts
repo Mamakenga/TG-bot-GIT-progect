@@ -9,7 +9,7 @@ export interface User {
   notifications_enabled: boolean;
   preferred_time: string;
   course_completed: boolean;
-  is_paused: boolean;
+  is_paused?: boolean;
   created_at: Date;
   updated_at: Date;
 }
