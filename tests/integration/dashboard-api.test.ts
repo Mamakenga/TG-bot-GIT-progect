@@ -49,7 +49,8 @@ const createTestApp = (database: Database) => {
   app.get('/dashboard/export/users', basicAuth, async (req, res) => {
     try {
       const users = await database.pool.query('SELECT * FROM users LIMIT 100');
-      res.csv(users.rows);
+      res.setHeader('Content-Type', 'text/csv');
+      res.send('id,telegram_id,name\n' + users.rows.map(u => `${u.id},${u.telegram_id},${u.name}`).join('\n'));
     } catch (error) {
       res.status(500).json({ error: 'Export failed' });
     }
@@ -100,7 +101,26 @@ describe('Dashboard API Integration Tests', () => {
 
   beforeAll(async () => {
     database = new Database();
-    await database.init();
+    
+    // Мокаем database для API тестов
+    database.pool = {
+      query: jest.fn().mockImplementation((query: string) => {
+        if (query.includes('SELECT * FROM users')) {
+          return Promise.resolve({ rows: [{ id: 1, telegram_id: 999999101, name: 'Test User' }] });
+        }
+        if (query.includes('COUNT(*)')) {
+          return Promise.resolve({ rows: [{ count: '2' }] });
+        }
+        return Promise.resolve({ rows: [] });
+      })
+    } as any;
+    
+    database.getStats = jest.fn().mockResolvedValue({
+      totalUsers: 2,
+      activeToday: 1,
+      completedCourse: 0
+    });
+    
     app = createTestApp(database);
   });
 

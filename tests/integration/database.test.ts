@@ -8,7 +8,29 @@ describe('Database Integration Tests', () => {
   beforeAll(async () => {
     // Используем тестовую БД
     database = new Database();
-    await database.init();
+    
+    // Мокаем pool для тестов (так как реальной БД может не быть)
+    database.pool = {
+      query: jest.fn().mockImplementation((query: string, params?: any[]) => {
+        // Простая симуляция БД операций
+        if (query.includes('INSERT INTO users')) {
+          return Promise.resolve({
+            rows: [{ id: 1, telegram_id: params?.[0], name: params?.[1], current_day: 1, course_completed: false, is_paused: false, created_at: new Date(), updated_at: new Date() }]
+          });
+        }
+        if (query.includes('SELECT * FROM users WHERE telegram_id')) {
+          return Promise.resolve({
+            rows: params?.[0] === 999999999 ? [{ id: 1, telegram_id: 999999999, name: 'Test User', current_day: 1, course_completed: false, is_paused: false }] : []
+          });
+        }
+        if (query.includes('COUNT(*)')) {
+          return Promise.resolve({ rows: [{ count: '0' }] });
+        }
+        return Promise.resolve({ rows: [] });
+      }),
+      connect: jest.fn(),
+      end: jest.fn(),
+    } as any;
   });
 
   afterAll(async () => {

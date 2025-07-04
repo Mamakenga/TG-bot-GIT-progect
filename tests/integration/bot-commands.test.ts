@@ -10,8 +10,8 @@ const mockBot = {
 
 // Mock Message objects
 const createMockMessage = (text: string, telegramId: number = 999999999) => ({
-  chat: { id: 123456789 },
-  from: { id: telegramId, first_name: 'Test User' },
+  chat: { id: 123456789, type: 'private' as const },
+  from: { id: telegramId, first_name: 'Test User', is_bot: false },
   text,
   message_id: 1,
   date: Date.now() / 1000,
@@ -19,13 +19,14 @@ const createMockMessage = (text: string, telegramId: number = 999999999) => ({
 
 const createMockCallbackQuery = (data: string, telegramId: number = 999999999) => ({
   id: 'callback_123',
-  from: { id: telegramId, first_name: 'Test User' },
+  from: { id: telegramId, first_name: 'Test User', is_bot: false },
   message: {
-    chat: { id: 123456789 },
+    chat: { id: 123456789, type: 'private' as const },
     message_id: 1,
     date: Date.now() / 1000,
   },
   data,
+  chat_instance: 'test_chat_instance',
 });
 
 describe('Bot Commands Integration Tests', () => {

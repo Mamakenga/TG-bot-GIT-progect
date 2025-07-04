@@ -31,6 +31,7 @@
     "@types/node-cron": "^3.0.0",
     "@types/node-telegram-bot-api": "^0.64.0",
     "@types/pg": "^8.10.0",
+    "@types/supertest": "^6.0.3",
     "jest": "^30.0.3",
     "supertest": "^7.0.0",
     "ts-jest": "^29.4.0",
