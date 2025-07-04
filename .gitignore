@@ -59,3 +59,10 @@ jspm_packages/
 
 # Railway
 .railway/
+
+# TypeScript build cache
+tsconfig.tsbuildinfo
+
+# Old configuration files
+railway-json.txt
+railway_config.json
