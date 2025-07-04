@@ -360,6 +360,13 @@ this.bot.onText(/\/resume$/, this.handleResume.bind(this));
           // ✅ ЛОГИРУЕМ ОТПРАВКУ
           await this.database.logReminderSent(user.id, currentDay, 'evening');
 
+          // ✅ ПРОВЕРЯЕМ, НУЖНО ЛИ ПЕРЕВЕСТИ НА СЛЕДУЮЩИЙ ДЕНЬ
+          const shouldAdvance = await this.database.shouldAdvanceUserDay(user.id, currentDay);
+          if (shouldAdvance && currentDay < 7) {
+            await this.database.updateUserDay(user.telegram_id, currentDay + 1);
+            console.log(`📅 Пользователь ${user.telegram_id} переведен на день ${currentDay + 1}`);
+          }
+
           console.log(`✅ Вечернее сообщение отправлено пользователю ${user.telegram_id} (день ${currentDay})`);
           await new Promise(resolve => setTimeout(resolve, 100));
 

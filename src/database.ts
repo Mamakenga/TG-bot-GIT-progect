@@ -262,13 +262,35 @@ export class Database {
       const query = `
         SELECT COUNT(*) as count FROM reminder_log 
         WHERE user_id = $1 AND day = $2 AND reminder_type = $3 
-          AND sent_date = CURRENT_DATE
+          AND DATE(sent_at) = CURRENT_DATE
       `;
       const result = await this.pool.query(query, [userId, day, reminderType]);
       return parseInt(result.rows[0].count) > 0;
     } catch (error) {
       console.error('❌ Ошибка в wasReminderSentToday:', error);
       return false; // При ошибке разрешаем отправку
+    }
+  }
+
+  // ✅ НОВЫЙ МЕТОД: Проверка, нужно ли переводить пользователя на следующий день
+  async shouldAdvanceUserDay(userId: number, currentDay: number): Promise<boolean> {
+    try {
+      // Проверяем, отправлены ли уже все 4 типа сообщений за текущий день
+      const query = `
+        SELECT DISTINCT reminder_type FROM reminder_log 
+        WHERE user_id = $1 AND day = $2 AND DATE(sent_at) = CURRENT_DATE
+      `;
+      const result = await this.pool.query(query, [userId, currentDay]);
+      const sentTypes = result.rows.map(row => row.reminder_type);
+      
+      // Все 4 типа сообщений: morning, exercise, phrase, evening
+      const allTypes = ['morning', 'exercise', 'phrase', 'evening'];
+      const allSent = allTypes.every(type => sentTypes.includes(type));
+      
+      return allSent;
+    } catch (error) {
+      console.error('❌ Ошибка в shouldAdvanceUserDay:', error);
+      return false;
     }
   }
 
