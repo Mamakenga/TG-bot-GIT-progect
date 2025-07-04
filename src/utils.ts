@@ -1,24 +1,20 @@
 import { config } from './config';
 
 // Проверка на тревожные слова
-export function checkForAlerts(text: string): Promise<string | null> {
-  return new Promise((resolve) => {
-    if (!text) {
-      resolve(null);
-      return;
+export function checkForAlerts(text: string): string | null {
+  if (!text) {
+    return null;
+  }
+  
+  const lowerText = text.toLowerCase();
+  
+  for (const keyword of config.security.alertKeywords) {
+    if (lowerText.includes(keyword.toLowerCase())) {
+      return keyword;
     }
-    
-    const lowerText = text.toLowerCase();
-    
-    for (const keyword of config.security.alertKeywords) {
-      if (lowerText.includes(keyword.toLowerCase())) {
-        resolve(keyword);
-        return;
-      }
-    }
-    
-    resolve(null);
-  });
+  }
+  
+  return null;
 }
 
 // Отправка алерта (можно расширить email уведомлениями)

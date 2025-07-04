@@ -673,7 +673,7 @@ this.bot.onText(/\/resume$/, this.handleResume.bind(this));
     if (!telegramId || !text) return;
 
     try {
-      const alertFound = await checkForAlerts(text);
+      const alertFound = checkForAlerts(text);
       if (alertFound) {
         const user = await this.database.getUser(telegramId);
         if (user) {
