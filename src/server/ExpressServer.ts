@@ -4,6 +4,7 @@ import cors from 'cors';
 import TelegramBot from 'node-telegram-bot-api';
 import { Database } from '../database';
 import { config } from '../config';
+import { logger } from '../utils/Logger';
 
 export class ExpressServer {
   private app: express.Application;
@@ -62,12 +63,12 @@ export class ExpressServer {
     // Webhook для Telegram
     this.app.post(`/bot${process.env.TELEGRAM_BOT_TOKEN}`, async (req, res) => {
       try {
-        console.log('📨 Получено обновление от Telegram');
+        logger.info('📨 Получено обновление от Telegram');
         await this.bot.processUpdate(req.body);
         res.status(200).json({ ok: true });
-        console.log('✅ Обновление обработано успешно');
+        logger.success('✅ Обновление обработано успешно');
       } catch (error) {
-        console.error('❌ Ошибка обработки webhook:', error);
+        logger.error('❌ Ошибка обработки webhook:', error);
         res.status(200).json({ ok: false, error: 'Internal error' });
       }
     });
@@ -498,7 +499,7 @@ body {
     // Экспорт ответов в CSV
     this.app.get('/dashboard/export/responses', authenticate, async (req, res) => {
       try {
-        console.log('📥 Запрос на экспорт ответов');
+        logger.info('📥 Запрос на экспорт ответов');
         
         const responses = await this.database.getAllResponses();
         
@@ -521,11 +522,11 @@ body {
         res.setHeader('Content-Type', 'text/csv; charset=utf-8');
         res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
         
-        console.log(`✅ Экспортировано ${responses.length} ответов`);
+        logger.success(`✅ Экспортировано ${responses.length} ответов`);
         res.send(csv);
         
       } catch (error) {
-        console.error('❌ Ошибка экспорта ответов:', error);
+        logger.error('❌ Ошибка экспорта ответов:', error);
         res.status(500).send(`Ошибка экспорта: ${error}`);
       }
     });
@@ -533,7 +534,7 @@ body {
     // Экспорт алертов в CSV
     this.app.get('/dashboard/export/alerts', authenticate, async (req, res) => {
       try {
-        console.log('📥 Запрос на экспорт алертов');
+        logger.info('📥 Запрос на экспорт алертов');
         
         const alerts = await this.database.getAlerts();
         
@@ -557,11 +558,11 @@ body {
         res.setHeader('Content-Type', 'text/csv; charset=utf-8');
         res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
         
-        console.log(`✅ Экспортировано ${alerts.length} алертов`);
+        logger.success(`✅ Экспортировано ${alerts.length} алертов`);
         res.send(csv);
         
       } catch (error) {
-        console.error('❌ Ошибка экспорта алертов:', error);
+        logger.error('❌ Ошибка экспорта алертов:', error);
         res.status(500).send(`Ошибка экспорта: ${error}`);
       }
     });
@@ -569,7 +570,7 @@ body {
     // Экспорт свободных ответов пользователей в CSV
     this.app.get('/dashboard/export/free-responses', authenticate, async (req, res) => {
       try {
-        console.log('📥 Запрос на экспорт свободных ответов');
+        logger.info('📥 Запрос на экспорт свободных ответов');
         
         // Получаем только свободные текстовые ответы (не callback кнопки)
         const freeResponses = await this.database.getFreeTextResponses();
@@ -612,11 +613,11 @@ body {
         res.setHeader('Content-Type', 'text/csv; charset=utf-8');
         res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
         
-        console.log(`✅ Экспортировано ${freeResponses.length} свободных ответов`);
+        logger.success(`✅ Экспортировано ${freeResponses.length} свободных ответов`);
         res.send(csv);
         
       } catch (error) {
-        console.error('❌ Ошибка экспорта свободных ответов:', error);
+        logger.error('❌ Ошибка экспорта свободных ответов:', error);
         res.status(500).send(`Ошибка экспорта: ${error}`);
       }
     });
@@ -624,7 +625,7 @@ body {
     // Экспорт пользователей в CSV
     this.app.get('/dashboard/export/users', authenticate, async (req, res) => {
       try {
-        console.log('📥 Запрос на экспорт пользователей');
+        logger.info('📥 Запрос на экспорт пользователей');
         
         const users = await this.database.getAllUsers();
         
@@ -651,11 +652,11 @@ body {
         res.setHeader('Content-Type', 'text/csv; charset=utf-8');
         res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
         
-        console.log(`✅ Экспортировано ${users.length} пользователей`);
+        logger.success(`✅ Экспортировано ${users.length} пользователей`);
         res.send(csv);
         
       } catch (error) {
-        console.error('❌ Ошибка экспорта пользователей:', error);
+        logger.error('❌ Ошибка экспорта пользователей:', error);
         res.status(500).send(`Ошибка экспорта: ${error}`);
       }
     });
@@ -664,7 +665,7 @@ body {
   async start(port: number): Promise<void> {
     return new Promise((resolve, reject) => {
       this.server = this.app.listen(port, () => {
-        console.log(`🚀 Сервер запущен на порту ${port}`);
+        logger.success(`🚀 Сервер запущен на порту ${port}`);
         resolve();
       });
 
@@ -676,7 +677,7 @@ body {
     return new Promise((resolve) => {
       if (this.server) {
         this.server.close(() => {
-          console.log('✅ Express сервер остановлен');
+          logger.success('✅ Express сервер остановлен');
           resolve();
         });
       } else {
