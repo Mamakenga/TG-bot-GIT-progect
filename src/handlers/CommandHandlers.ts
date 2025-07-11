@@ -1,4 +1,4 @@
-// src/handlers/CommandHandlers.ts - ИСПРАВЛЕННАЯ ВЕРСИЯ
+// src/handlers/CommandHandlers.ts - ИСПРАВЛЕННАЯ ВЕРСИЯ С ЛОГИКОЙ ЗАВЕРШЕНИЯ КУРСА
 import TelegramBot from 'node-telegram-bot-api';
 import { Database } from '../database';
 import { KeyboardManager } from '../keyboards/KeyboardManager';
@@ -152,6 +152,9 @@ export class CommandHandlers {
         await this.bot.sendMessage(chatId, 'Понимаю 🤗 Напиши "Старт" когда будешь готова.', {
           reply_markup: KeyboardManager.getMainKeyboard(user)
         });
+      } else if (data === 'help_understood') {
+        // Обработка кнопки "Понятно, спасибо" из помощи с упражнениями
+        await this.bot.sendMessage(chatId, 'Рада помочь! 💙 Если будут вопросы - обращайся.');
       }
 
       // ✅ НОВОЕ: Обработка кнопки "Нужна помощь"
@@ -164,27 +167,101 @@ export class CommandHandlers {
         return;
       }
 
-      // Обработка других callback'ов
+      // ✅ ГЛАВНОЕ ИСПРАВЛЕНИЕ: Полная обработка callback'ов дня с переходом между днями
       if (data.startsWith('day_')) {
-        const user = await this.database.getUser(telegramId);
-        if (user) {
-          await this.database.saveResponse(user.id, user.current_day || 1, 'button_choice', data);
-          
-          const responses = [
-            'Спасибо за ответ! 💙',
-            'Важно, что ты находишь время на себя! 🌸', 
-            'Хорошо, что ты написала это 💙'
-          ];
-          const randomResponse = responses[Math.floor(Math.random() * responses.length)];
-          
-          await this.bot.sendMessage(chatId, randomResponse, {
-            reply_markup: KeyboardManager.getMainKeyboard(user)
-          });
-        }
+        await this.handleDayCallback(chatId, telegramId, data);
       }
 
     } catch (error) {
       logger.error('Ошибка в handleCallback', error);
+    }
+  }
+
+  // ✅ НОВЫЙ МЕТОД: Полная обработка callback'ов дня с переходом между днями
+  private async handleDayCallback(chatId: number, telegramId: number, data: string): Promise<void> {
+    try {
+      const user = await this.database.getUser(telegramId);
+      if (!user) return;
+
+      const currentDay = user.current_day || 1;
+
+      // Сохраняем ответ пользователя
+      await this.database.saveResponse(user.id, currentDay, 'button_choice', data);
+
+      // Отправляем подтверждение
+      const responses = [
+        'Спасибо за ответ! 💙',
+        'Важно, что ты откликаешься 🌸', 
+        'Твоя честность ценна 💙',
+        'Благодарю за участие 🤗'
+      ];
+      const randomResponse = responses[Math.floor(Math.random() * responses.length)];
+      
+      await this.bot.sendMessage(chatId, randomResponse, {
+        reply_markup: KeyboardManager.getMainKeyboard(user)
+      });
+
+      // ✅ КЛЮЧЕВАЯ ЛОГИКА: Переход между днями только для вечерних ответов
+      if (data.includes('_evening_')) {
+        // Проверяем, не завершен ли уже этот день (защита от дублирования)
+        const dayCompleted = await this.database.isDayCompleted(user.id, currentDay);
+        
+        if (!dayCompleted) {
+          
+          // ✅ РЕШЕНИЕ ПРОБЛЕМЫ: если это день 7 - завершаем курс полностью
+          if (currentDay === 7) {
+            // Помечаем день как завершенный
+            await this.database.markDayCompleted(user.id, currentDay);
+            
+            // ✅ ВАЖНО: Помечаем весь курс как завершенный
+            await this.database.markCourseCompleted(telegramId);
+            
+            // Получаем обновленные данные пользователя
+            const completedUser = await this.database.getUser(telegramId);
+            
+            // ✅ ФИНАЛЬНОЕ СООБЩЕНИЕ с контактами психолога
+            const finalMessage = 
+              `🎉 Поздравляю! Ты завершила 7-дневный курс заботы о себе!\n\n` +
+              
+              `💫 **Ты проделала важную работу:**\n` +
+              `• Научилась замечать свою боль\n` +
+              `• Познакомилась с внутренним критиком\n` +
+              `• Практиковала самосострадание\n` +
+              `• Открыла в себе источник заботы\n\n` +
+              
+              `🌱 **Это только начало пути!**\n` +
+              `Навыки самосострадания требуют постоянной практики.\n\n` +
+              
+              `💙 **Если чувствуешь, что нужна дополнительная поддержка:**\n` +
+              `Рассмотри возможность работы с психологом. Профессиональная помощь поможет углубить твою практику заботы о себе.\n\n` +
+              
+              `🌸 **Контакты для консультации с Анной Малиновской:**\n` +
+              `📧 Email: help@harmony4soul.com\n` +
+              `📱 Telegram: @amalinovskaya_psy\n\n` +
+              
+              `Спасибо за то, что прошла этот путь. Ты достойна всей любви и заботы в мире! 💙`;
+            
+            await this.bot.sendMessage(chatId, finalMessage, {
+              reply_markup: KeyboardManager.getMainKeyboard(completedUser)
+            });
+            
+            logger.info(`✅ Пользователь ${telegramId} завершил курс!`);
+            
+          } else {
+            // ✅ Для дней 1-6: переходим к следующему дню
+            const nextDay = currentDay + 1;
+            await this.database.updateUserDay(telegramId, nextDay);
+            await this.database.markDayCompleted(user.id, currentDay);
+            
+            logger.info(`📅 Пользователь ${telegramId} перешел с дня ${currentDay} на день ${nextDay}`);
+          }
+        } else {
+          logger.info(`⚠️ День ${currentDay} уже завершен для пользователя ${telegramId}`);
+        }
+      }
+
+    } catch (error) {
+      logger.error('❌ Ошибка в handleDayCallback:', error);
     }
   }
 
