@@ -626,6 +626,23 @@ export class Database {
     const query = 'UPDATE users SET updated_at = NOW() WHERE id = $1';
     await this.pool.query(query, [userId]);
   }
+  // Получить ответы пользователя на тест персонализации
+async getUserTestResponses(userId: number): Promise<any[]> {
+  try {
+    const query = `
+      SELECT question_type, response_text, created_at
+      FROM responses 
+      WHERE user_id = $1 AND day = 8 
+        AND question_type LIKE 'test_q%'
+      ORDER BY created_at ASC
+    `;
+    const result = await this.pool.query(query, [userId]);
+    return result.rows;
+  } catch (error) {
+    console.error('❌ Ошибка получения ответов теста:', error);
+    return [];
+  }
+}
 }
 
 export default Database;
